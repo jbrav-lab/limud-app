@@ -1,5 +1,5 @@
-import type { Level, Question, Topic } from '../engine/types';
-import { choice, cmp, fixed, fmt, fr, pick, randInt, shuffle, simplify, chance } from '../engine/math';
+import type { Level, Question, Topic } from '../../../engine/types';
+import { choice, cmp, fixed, fmt, fr, pick, randInt, shuffle, simplify, chance } from '../../../engine/math';
 
 const UNIT = 'decimals';
 const PLACE = ['עשיריות', 'מאיות', 'אלפיות'];

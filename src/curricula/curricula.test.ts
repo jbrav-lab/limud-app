@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { TOPICS } from './index';
+import { PACKS, loadPack, packIdOf } from './index';
 import { checkAnswer } from '../engine/check';
+
+// Every pack is checked: its question generators, ids and content rules.
+const LOADED = await Promise.all(PACKS.map((p) => loadPack(p.id)));
+const TOPICS = LOADED.flatMap((p) => p.topics);
+
+describe('curriculum registry', () => {
+  it('namespaces every topic and unit by its pack, with no duplicates', () => {
+    for (const pack of LOADED) {
+      for (const t of pack.topics) {
+        expect(packIdOf(t.id)).toBe(pack.id);
+        expect(pack.units.some((u) => u.id === t.unit), `${t.id} has unknown unit ${t.unit}`).toBe(true);
+      }
+      for (const u of pack.units) expect(pack.topics.some((t) => t.unit === u.id), `empty unit ${u.id}`).toBe(true);
+    }
+    expect(new Set(TOPICS.map((t) => t.id)).size).toBe(TOPICS.length);
+  });
+});
 import type { Level, Question } from '../engine/types';
 import { fmt, fracWords, frBoth } from '../engine/math';
 
@@ -70,7 +87,7 @@ describe('fractions in Hebrew words', () => {
     expect(frBoth(13, 4, true)).toBe('שלושה ורבע ([[{3 1/4}]])');
   });
   it('is used by the fraction word problems', () => {
-    const seen = TOPICS.find((t) => t.id === 'fraction-word')!;
+    const seen = TOPICS.find((t) => t.id === 'g5.math.fraction-word')!;
     for (let i = 0; i < 50; i++) expect(seen.generate(1).wordProblem).toBe(true);
   });
 });

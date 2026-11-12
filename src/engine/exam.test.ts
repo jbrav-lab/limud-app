@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { allocatePoints, buildExam, verbalGrade } from './exam';
-import { TOPICS } from '../topics';
+import { loadPack } from '../curricula';
+
+const TOPICS = (await loadPack('g5.math')).topics;
 
 describe('exam', () => {
   it('splits exactly 100 points, more for harder questions', () => {
@@ -12,7 +14,7 @@ describe('exam', () => {
   });
 
   it('builds the requested number of distinct questions, spread over the chosen topics', () => {
-    const topics = TOPICS.filter((t) => t.unit === 'fractions');
+    const topics = TOPICS.filter((t) => t.unit === 'g5.math.fractions');
     for (const n of [5, 13, 25]) {
       const exam = buildExam(topics, 'medium', n, () => 1);
       expect(exam).toHaveLength(n);

@@ -43,15 +43,19 @@ export function buildExam(topics: Topic[], difficulty: Difficulty, count: number
   const seen = new Set<string>();
   const out: Omit<ExamQuestion, 'points'>[] = [];
   let order = shuffle(topics);
-  for (let i = 0; out.length < n && i < n * 20; i++) {
+  for (let i = 0; out.length < n && i < n * 4; i++) {
     if (i > 0 && i % order.length === 0) order = shuffle(topics);
     const topic = order[i % order.length];
     const level = fixed[difficulty] ?? levelFor(topic.id);
-    const q = topic.generate(level);
-    const key = q.prompt + '|' + (q.expression ?? '') + '|' + JSON.stringify(q.visual ?? '');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ topicId: topic.id, level, q });
+    // A topic keeps its turn until it produces a question not already in the test.
+    for (let tries = 0; tries < 30; tries++) {
+      const q = topic.generate(level);
+      const key = q.prompt + '|' + (q.expression ?? '') + '|' + JSON.stringify(q.visual ?? '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ topicId: topic.id, level, q });
+      break;
+    }
   }
   const points = allocatePoints(out.map((x) => x.level));
   return shuffle(out.map((x, i) => ({ ...x, points: points[i] })));

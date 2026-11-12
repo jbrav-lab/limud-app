@@ -1,5 +1,5 @@
-import type { Level, Question, Topic } from '../engine/types';
-import { choice, cmp, fr, frBoth, gcd, lcm, pick, randInt, shuffle, simplify, chance, person } from '../engine/math';
+import type { Level, Question, Topic } from '../../../engine/types';
+import { choice, cmp, fr, frBoth, gcd, lcm, pick, randInt, shuffle, simplify, chance, person } from '../../../engine/math';
 
 const UNIT = 'fractions';
 

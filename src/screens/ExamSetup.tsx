@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { DIFFICULTIES, MAX_QUESTIONS, MIN_QUESTIONS, type Difficulty } from '../engine/exam';
-import { TOPICS, UNITS } from '../topics';
+import type { Pack } from '../curricula/types';
 
 export interface ExamConfig {
+  packId: string;
   topicIds: string[];
   difficulty: Difficulty;
   count: number;
 }
 
-export function ExamSetup({ onStart, onBack }: { onStart: (c: ExamConfig) => void; onBack: () => void }) {
+export function ExamSetup({ pack, onStart, onBack }: { pack: Pack; onStart: (c: ExamConfig) => void; onBack: () => void }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [count, setCount] = useState(DIFFICULTIES.find((d) => d.id === 'medium')!.defaultCount);
@@ -25,7 +26,7 @@ export function ExamSetup({ onStart, onBack }: { onStart: (c: ExamConfig) => voi
     setCount(DIFFICULTIES.find((x) => x.id === d)!.defaultCount);
   };
 
-  const allIds = TOPICS.map((t) => t.id);
+  const allIds = pack.topics.map((t) => t.id);
   const allOn = picked.size === allIds.length;
 
   return (
@@ -35,7 +36,9 @@ export function ExamSetup({ onStart, onBack }: { onStart: (c: ExamConfig) => voi
           →
         </button>
         <div>
-          <div className="crumb">מבחן לדוגמה, ציון מ-100</div>
+          <div className="crumb">
+            {pack.emoji} {pack.title} · מבחן לדוגמה, ציון מ-100
+          </div>
           <h1>📝 הכנה למבחן</h1>
         </div>
       </header>
@@ -47,8 +50,8 @@ export function ExamSetup({ onStart, onBack }: { onStart: (c: ExamConfig) => voi
             {allOn ? 'ניקוי הכול' : 'כל הנושאים'}
           </button>
         </div>
-        {UNITS.map((u) => {
-          const ts = TOPICS.filter((t) => t.unit === u.id);
+        {pack.units.map((u) => {
+          const ts = pack.topics.filter((t) => t.unit === u.id);
           const ids = ts.map((t) => t.id);
           const unitOn = ids.every((id) => picked.has(id));
           return (
@@ -98,7 +101,7 @@ export function ExamSetup({ onStart, onBack }: { onStart: (c: ExamConfig) => voi
         <p className="muted small-text">כל שאלה שווה בערך {Math.round(100 / count)} נקודות{difficulty === 'adaptive' ? ' (שאלות ברמה גבוהה יותר שוות יותר)' : ''}.</p>
       </div>
 
-      <button className="btn primary wide" disabled={picked.size === 0} onClick={() => onStart({ topicIds: allIds.filter((id) => picked.has(id)), difficulty, count })}>
+      <button className="btn primary wide" disabled={picked.size === 0} onClick={() => onStart({ packId: pack.id, topicIds: allIds.filter((id) => picked.has(id)), difficulty, count })}>
         {picked.size === 0 ? 'בחרו לפחות נושא אחד' : `מתחילים מבחן (${count} שאלות) ▶`}
       </button>
     </div>

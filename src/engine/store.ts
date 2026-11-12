@@ -8,7 +8,11 @@ export interface Profile {
   createdAt: number;
   /** Color theme id from the design system (see src/themes.ts); missing = default theme. */
   theme?: string;
+  /** School grade (2, 5, …): decides which subjects the child sees. */
+  grade: number;
 }
+
+export type ProfileFields = Pick<Profile, 'name' | 'avatar' | 'theme' | 'grade'>;
 
 export interface TopicProgress {
   level: Level;
@@ -34,6 +38,8 @@ export interface Mistake {
 export interface ExamRecord {
   at: number;
   topicIds: string[];
+  /** The subject pack the test was taken in, e.g. "g5.math". */
+  packId: string;
   difficulty: string;
   questions: number;
   correct: number;
@@ -52,21 +58,64 @@ export interface ChildProgress {
 }
 
 export interface AppData {
-  version: 1;
+  /** 1 = grade-5 math only (topic ids like "fractions"); 2 = curriculum packs (ids like "g5.math.fractions"). */
+  version: 2;
   parentPin?: string;
   profiles: Profile[];
   progress: Record<string, ChildProgress>;
   sound: boolean;
 }
 
+// The storage key stays the same across data versions: progress is migrated in place.
 const KEY = 'limud-app-v1';
+const BACKUP_V1_KEY = 'limud-app-backup-before-v2';
 
-const empty = (): AppData => ({ version: 1, profiles: [], progress: {}, sound: true });
+const empty = (): AppData => ({ version: 2, profiles: [], progress: {}, sound: true });
+
+/** Data version 1 only had grade-5 math, so every old id belongs to the "g5.math" pack. */
+const V1_PACK = 'g5.math';
+const nsId = (id: string) => (id.includes('.') ? id : `${V1_PACK}.${id}`);
+
+/** Bring any saved data (current or older version) up to the current shape. Never drops progress. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function migrate(raw: any): AppData {
+  const d = { ...empty(), ...raw };
+  if ((raw?.version ?? 1) < 2) {
+    d.profiles = (d.profiles ?? []).map((p: Profile) => ({ ...p, grade: p.grade ?? 5 }));
+    d.progress = Object.fromEntries(
+      Object.entries(d.progress ?? {}).map(([pid, c]) => {
+        const child = c as ChildProgress;
+        return [
+          pid,
+          {
+            ...child,
+            topics: Object.fromEntries(Object.entries(child.topics ?? {}).map(([tid, tp]) => [nsId(tid), tp])),
+            mistakes: (child.mistakes ?? []).map((m) => ({ ...m, topicId: nsId(m.topicId) })),
+            exams: (child.exams ?? []).map((e) => ({ ...e, packId: e.packId ?? V1_PACK, topicIds: e.topicIds.map(nsId) })),
+          },
+        ];
+      }),
+    );
+  }
+  d.profiles = d.profiles.map((p: Profile) => ({ ...p, grade: p.grade ?? 5 }));
+  d.version = 2;
+  return d as AppData;
+}
 
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...empty(), ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if ((parsed?.version ?? 1) < 2) {
+        // keep an untouched copy of the old data, just in case
+        localStorage.setItem(BACKUP_V1_KEY, raw);
+        const m = migrate(parsed);
+        localStorage.setItem(KEY, JSON.stringify(m));
+        return m;
+      }
+      return migrate(parsed);
+    }
   } catch {
     /* storage unavailable */
   }
@@ -146,13 +195,13 @@ export function mastery(tp: TopicProgress): number {
 }
 
 export const actions = {
-  addProfile(name: string, avatar: string, theme?: string) {
+  addProfile(fields: ProfileFields) {
     const id = Math.random().toString(36).slice(2, 10);
-    update((d) => ({ ...d, profiles: [...d.profiles, { id, name, avatar, theme, createdAt: Date.now() }] }));
+    update((d) => ({ ...d, profiles: [...d.profiles, { id, ...fields, createdAt: Date.now() }] }));
     return id;
   },
-  editProfile(id: string, name: string, avatar: string, theme?: string) {
-    update((d) => ({ ...d, profiles: d.profiles.map((p) => (p.id === id ? { ...p, name, avatar, theme } : p)) }));
+  editProfile(id: string, fields: ProfileFields) {
+    update((d) => ({ ...d, profiles: d.profiles.map((p) => (p.id === id ? { ...p, ...fields } : p)) }));
   },
   deleteProfile(id: string) {
     update((d) => {
@@ -171,9 +220,9 @@ export const actions = {
     update((d) => ({ ...d, sound: on }));
   },
   importData(json: string) {
-    const parsed = JSON.parse(json) as AppData;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.profiles)) throw new Error('bad file');
-    update(() => ({ ...empty(), ...parsed }));
+    const parsed = JSON.parse(json);
+    if (![1, 2].includes(parsed?.version) || !Array.isArray(parsed.profiles)) throw new Error('bad file');
+    update(() => migrate(parsed)); // backups from older versions are upgraded on restore
   },
 
   /**

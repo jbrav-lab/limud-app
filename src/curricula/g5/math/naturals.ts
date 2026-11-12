@@ -1,5 +1,5 @@
-import type { Level, Question, Topic } from '../engine/types';
-import { choice, cmp, fmt, pick, randInt, chance, person } from '../engine/math';
+import type { Level, Question, Topic } from '../../../engine/types';
+import { choice, cmp, fmt, pick, randInt, chance, person } from '../../../engine/math';
 
 const UNIT = 'naturals';
 

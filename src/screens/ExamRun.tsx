@@ -6,7 +6,7 @@ import { checkAnswer, isComplete, type UserAnswer } from '../engine/check';
 import { DIFFICULTIES, buildExam, verbalGrade, type ExamQuestion } from '../engine/exam';
 import { play } from '../engine/sound';
 import { actions, getData, topicProgress } from '../engine/store';
-import { topicById } from '../topics';
+import { topicById } from '../curricula';
 import type { ExamConfig } from './ExamSetup';
 
 interface Graded {
@@ -48,7 +48,7 @@ export function ExamRun({ pid, config, onExit, onNew }: { pid: string; config: E
     const score = exam.reduce((s, e, i) => s + (g[i].correct ? e.points : 0), 0);
     const earned = actions.recordExam(
       pid,
-      { topicIds: config.topicIds, difficulty: config.difficulty, questions: exam.length, correct: g.filter((x) => x.correct).length, score },
+      { packId: config.packId, topicIds: config.topicIds, difficulty: config.difficulty, questions: exam.length, correct: g.filter((x) => x.correct).length, score },
       exam.map((e, i) => ({
         topicId: e.topicId,
         level: e.level,

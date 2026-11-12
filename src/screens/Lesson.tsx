@@ -1,14 +1,14 @@
 import { Expression, MathText } from '../components/MathText';
 import { Visual } from '../components/Visual';
 import { mastery, topicProgress, useData } from '../engine/store';
-import { topicById, unitById } from '../topics';
+import { topicById, unitById } from '../curricula';
 import { Stars } from './Home';
 
 export function Lesson({ pid, topicId, onPractice, onBack }: { pid: string; topicId: string; onPractice: () => void; onBack: () => void }) {
   const data = useData();
   const topic = topicById(topicId);
-  if (!topic) return null;
-  const unit = unitById(topic.unit);
+  const unit = topic && unitById(topic.unit);
+  if (!topic || !unit) return null;
   const tp = topicProgress(data, pid, topicId);
 
   return (

@@ -10,9 +10,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'לומדים חשבון – כיתה ה׳',
+        name: 'לומדים',
         short_name: 'לומדים',
-        description: 'תרגול מתמטיקה לפי תכנית הלימודים של משרד החינוך',
+        description: 'תרגול לפי תכנית הלימודים של משרד החינוך',
         lang: 'he',
         dir: 'rtl',
         display: 'standalone',

@@ -1,5 +1,5 @@
-import type { Level, QuadKind, Question, Topic } from '../engine/types';
-import { choice, fmt, pick, randInt, chance } from '../engine/math';
+import type { Level, QuadKind, Question, Topic } from '../../../engine/types';
+import { choice, fmt, pick, randInt, chance } from '../../../engine/math';
 
 const UNIT = 'geometry';
 

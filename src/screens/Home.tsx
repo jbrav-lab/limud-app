@@ -1,5 +1,5 @@
 import { childProgress, mastery, topicProgress, useData, type AppData } from '../engine/store';
-import { TOPICS, UNITS } from '../topics';
+import type { Pack } from '../curricula/types';
 
 export function Stars({ n, of = 3 }: { n: number; of?: number }) {
   return (
@@ -19,7 +19,8 @@ interface Badge {
   earned: boolean;
 }
 
-export function badges(data: AppData, pid: string): Badge[] {
+/** Badges for the collection strip: general ones plus one per unit of the current subject. */
+export function badges(data: AppData, pid: string, pack: Pack): Badge[] {
   const c = childProgress(data, pid);
   const m = (id: string) => mastery(topicProgress(data, pid, id));
   const answered = Object.values(c.daily).reduce((s, x) => s + x, 0);
@@ -30,59 +31,85 @@ export function badges(data: AppData, pid: string): Badge[] {
     { icon: '🌋', title: '7 ימים ברצף', earned: c.streakDays >= 7 },
     { icon: '⭐', title: '100 כוכבים', earned: c.stars >= 100 },
     { icon: '🌠', title: '500 כוכבים', earned: c.stars >= 500 },
-    { icon: '🏅', title: 'אלוף בנושא', earned: TOPICS.some((t) => m(t.id) === 3) },
+    { icon: '🏅', title: 'אלוף בנושא', earned: Object.values(c.topics).some((tp) => mastery(tp) === 3) },
     { icon: '📝', title: 'מבחן ראשון', earned: (c.exams?.length ?? 0) >= 1 },
     { icon: '💯', title: 'ציון 100', earned: (c.exams ?? []).some((e) => e.score === 100) },
   ];
-  for (const u of UNITS) {
-    const ts = TOPICS.filter((t) => t.unit === u.id);
+  for (const u of pack.units) {
+    const ts = pack.topics.filter((t) => t.unit === u.id);
     list.push({ icon: '🏆', title: `${u.title}`, earned: ts.every((t) => m(t.id) >= 2) });
   }
   return list;
 }
 
+/** The child's top bar: who is learning (tap to switch), stars, streak and the parent lock. */
+export function TopBar({ pid, onSwitch, onParent }: { pid: string; onSwitch: () => void; onParent: () => void }) {
+  const data = useData();
+  const profile = data.profiles.find((p) => p.id === pid);
+  if (!profile) return null;
+  const c = childProgress(data, pid);
+  return (
+    <header className="topbar">
+      <button className="me" onClick={onSwitch} aria-label="החלפת ילד/ה">
+        <span className="avatar sm">{profile.avatar}</span>
+        <span>{profile.name}</span>
+      </button>
+      <div className="chips">
+        <span className="chip" title="כוכבים">
+          ⭐ {c.stars}
+        </span>
+        <span className="chip" title="ימים ברצף">
+          🔥 {c.streakDays}
+        </span>
+        <button className="chip btnchip" onClick={onParent} aria-label="אזור הורים">
+          🔒
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/** A subject's home: its units and topics, test prep and mixed practice. */
 export function Home({
   pid,
+  pack,
   onTopic,
   onMixed,
   onSwitch,
   onParent,
   onExam,
+  onSubjects,
 }: {
   pid: string;
+  pack: Pack;
   onTopic: (id: string) => void;
   onMixed: (unitId?: string) => void;
   onSwitch: () => void;
   onParent: () => void;
   onExam: () => void;
+  /** Back to the subject list (only when the child's grade has more than one subject). */
+  onSubjects?: () => void;
 }) {
   const data = useData();
-  const profile = data.profiles.find((p) => p.id === pid);
-  if (!profile) return null;
   const c = childProgress(data, pid);
-  const bs = badges(data, pid);
-  const practiced = TOPICS.filter((t) => topicProgress(data, pid, t.id).attempts > 0).length;
-  const lastExam = c.exams?.[0];
+  const bs = badges(data, pid, pack);
+  const practiced = pack.topics.filter((t) => topicProgress(data, pid, t.id).attempts > 0).length;
+  const lastExam = c.exams?.find((e) => e.packId === pack.id);
 
   return (
     <div className="screen home">
-      <header className="topbar">
-        <button className="me" onClick={onSwitch} aria-label="החלפת ילד/ה">
-          <span className="avatar sm">{profile.avatar}</span>
-          <span>{profile.name}</span>
-        </button>
-        <div className="chips">
-          <span className="chip" title="כוכבים">
-            ⭐ {c.stars}
-          </span>
-          <span className="chip" title="ימים ברצף">
-            🔥 {c.streakDays}
-          </span>
-          <button className="chip btnchip" onClick={onParent} aria-label="אזור הורים">
-            🔒
+      <TopBar pid={pid} onSwitch={onSwitch} onParent={onParent} />
+
+      <div className="subject-head">
+        {onSubjects && (
+          <button className="back" onClick={onSubjects} aria-label="כל המקצועות">
+            →
           </button>
-        </div>
-      </header>
+        )}
+        <h1>
+          {pack.emoji} {pack.title}
+        </h1>
+      </div>
 
       <section className="badges" aria-label="האוסף שלי">
         {bs.map((b) => (
@@ -108,8 +135,8 @@ export function Home({
         )}
       </div>
 
-      {UNITS.map((u) => {
-        const ts = TOPICS.filter((t) => t.unit === u.id);
+      {pack.units.map((u) => {
+        const ts = pack.topics.filter((t) => t.unit === u.id);
         return (
           <section key={u.id} className="unit" style={{ '--unit': u.color } as React.CSSProperties}>
             <div className="unit-head">
@@ -120,7 +147,7 @@ export function Home({
                 </button>
               )}
             </div>
-            <div className="topic-grid">
+            <div className="topic-grid" dir={pack.dir}>
               {ts.map((t) => {
                 const tp = topicProgress(data, pid, t.id);
                 const m = mastery(tp);

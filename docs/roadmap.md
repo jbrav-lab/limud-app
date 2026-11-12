@@ -1,5 +1,19 @@
 # Roadmap
 
+## The suite: one app, many curricula
+Decided 2026-11-12: one app (not one app per subject) for grades 2 and 5 and subjects such as math, Hebrew, English and מורשת. The structure is shared: profiles, lessons, practice, tests, rewards, parent area, themes and the design system. Content comes in per-subject packs.
+
+- **Done:**
+  - curriculum registry with lazy-loaded packs (`src/curricula/`), with grade-5 math as the first pack;
+  - namespaced ids, with a data migration from version 1 → 2 that keeps all progress;
+  - a grade on every profile;
+  - a subject screen;
+  - subject-aware test prep and parent report.
+- **Next:**
+  1. **Question banks + new answer types** for language subjects. Authored questions as data per topic; free text with accepted variants (with or without niqqud), matching, ordering, fill-the-gap, multiple selection; shared reading passages; per-pack text direction (English LTR). Proven with the first language pack.
+  2. **Grade 2 adaptations.** A grade profile in the design system: larger type and tap targets, read-aloud (text-to-speech) on by default, shorter sessions. Grade 2 follows the *new* Ministry curriculum.
+  3. **More packs.** Each is mainly content: a curriculum mapping doc, topics and question banks.
+
 The current app is a **trial run**. Progress lives only on each child's phone (browser storage), with manual backup/restore in the parent area.
 
 ## Planned for the final version (not started)

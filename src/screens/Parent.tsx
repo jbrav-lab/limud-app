@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
-import { TOPICS, UNITS, topicById } from '../topics';
+import { PACKS, gradeLabel, packInfo, topicById } from '../curricula';
+import type { Pack } from '../curricula/types';
+import { WithPacks } from './Subjects';
 import { Stars } from './Home';
 import { DIFFICULTIES, verbalGrade } from '../engine/exam';
 import { ProfileForm } from './Profiles';
@@ -50,10 +52,13 @@ function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
 
 const fmtDate = (t: number) => (t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '—');
 
-function ChildReport({ pid }: { pid: string }) {
+function ChildReport({ pid, allPacks }: { pid: string; allPacks: Pack[] }) {
   const data = useData();
   const c = childProgress(data, pid);
-  const tps = TOPICS.map((t) => ({ t, tp: topicProgress(data, pid, t.id) }));
+  const grade = data.profiles.find((p) => p.id === pid)?.grade;
+  // The child's grade subjects, plus any other subject they have progress in (e.g. after a grade change).
+  const packs = allPacks.filter((p) => p.grade === grade || p.topics.some((t) => c.topics[t.id]));
+  const tps = packs.flatMap((p) => p.topics).map((t) => ({ t, tp: topicProgress(data, pid, t.id) }));
   const attempts = tps.reduce((s, x) => s + x.tp.attempts, 0);
   const first = tps.reduce((s, x) => s + x.tp.firstTry, 0);
   const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -110,6 +115,7 @@ function ChildReport({ pid }: { pid: string }) {
             <thead>
               <tr>
                 <th>תאריך</th>
+                <th>מקצוע</th>
                 <th>ציון</th>
                 <th>נכונות</th>
                 <th>רמה</th>
@@ -120,6 +126,7 @@ function ChildReport({ pid }: { pid: string }) {
               {c.exams.slice(0, 10).map((e, i) => (
                 <tr key={i} className={e.score < 55 ? 'weak' : ''}>
                   <td>{fmtDate(e.at)}</td>
+                  <td>{packInfo(e.packId)?.emoji ?? ''}</td>
                   <td>
                     <b>{e.score}</b> <span className="muted">{verbalGrade(e.score).label}</span>
                   </td>
@@ -147,7 +154,12 @@ function ChildReport({ pid }: { pid: string }) {
         </div>
       )}
 
-      {UNITS.map((u) => (
+      {packs.length === 0 && <p className="muted center">עוד אין מקצועות ל{gradeLabel(grade ?? 0)}.</p>}
+      {packs.flatMap((p) => [
+        <h2 key={p.id} className="pack-title">
+          {p.emoji} {p.title} <span className="muted small-text">{gradeLabel(p.grade)}</span>
+        </h2>,
+        ...p.units.map((u) => (
         <div key={u.id} className="card">
           <h3 style={{ color: u.color }}>{u.title}</h3>
           <table className="report">
@@ -184,7 +196,8 @@ function ChildReport({ pid }: { pid: string }) {
             </tbody>
           </table>
         </div>
-      ))}
+        )),
+      ])}
       <p className="footnote">"הצלחה" = נכון בניסיון ראשון, ונכון אחרי רמז נספר כחצי.</p>
 
       <div className="card">
@@ -248,7 +261,9 @@ export function Parent({ onBack }: { onBack: () => void }) {
         </button>
       </nav>
 
-      {sel !== 'settings' && data.profiles.some((p) => p.id === sel) && <ChildReport pid={sel} />}
+      {sel !== 'settings' && data.profiles.some((p) => p.id === sel) && (
+        <WithPacks ids={PACKS.map((p) => p.id)}>{(packs) => <ChildReport pid={sel} allPacks={packs} />}</WithPacks>
+      )}
 
       {sel === 'settings' && (
         <>
@@ -259,8 +274,8 @@ export function Parent({ onBack }: { onBack: () => void }) {
                 <ProfileForm
                   key={p.id}
                   initial={p}
-                  onDone={(n, a, th) => {
-                    actions.editProfile(p.id, n, a, th);
+                  onDone={(fields) => {
+                    actions.editProfile(p.id, fields);
                     setEditing(null);
                   }}
                   onCancel={() => setEditing(null)}
@@ -268,7 +283,7 @@ export function Parent({ onBack }: { onBack: () => void }) {
               ) : (
                 <div key={p.id} className="kid-row">
                   <span>
-                    {p.avatar} {p.name}
+                    {p.avatar} {p.name} <span className="muted small-text">· {gradeLabel(p.grade)}</span>
                   </span>
                   <span className="row">
                     <button className="link small" onClick={() => setEditing(p.id)}>
@@ -296,8 +311,8 @@ export function Parent({ onBack }: { onBack: () => void }) {
             )}
             {editing === 'new' ? (
               <ProfileForm
-                onDone={(n, a, th) => {
-                  actions.addProfile(n, a, th);
+                onDone={(fields) => {
+                  actions.addProfile(fields);
                   setEditing(null);
                 }}
                 onCancel={() => setEditing(null)}

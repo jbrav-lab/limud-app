@@ -7,7 +7,7 @@ import { pick } from '../engine/math';
 import { play } from '../engine/sound';
 import { actions, getData, mastery, topicProgress } from '../engine/store';
 import type { Level, Question } from '../engine/types';
-import { topicById } from '../topics';
+import { topicById } from '../curricula';
 import { Stars } from './Home';
 
 export const SESSION_LEN = 10;

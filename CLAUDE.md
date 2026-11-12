@@ -1,6 +1,13 @@
 # Project notes for Claude
 
-Hebrew (RTL) grade-5 math learning app for the user's kids. React + TypeScript + Vite PWA. See README.md.
+Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grade-5 math built so far). React + TypeScript + Vite PWA. See README.md.
+
+## Curriculum suite (one app, many subjects)
+- Hierarchy: Grade → Subject pack → Unit → Topic. Registry: `src/curricula/index.ts` (`PACKS` info + lazy `LOADERS`). Each pack lives in `src/curricula/g<grade>/<subject>/pack.ts` and exports local ids; the registry namespaces them (`g5.math.fractions`). Store and route ids are always namespaced.
+- **Add a subject:** create the pack folder + `pack.ts`, add it to `PACKS` and `LOADERS`, and add a curriculum mapping doc in `docs/`. `src/curricula/curricula.test.ts` checks every pack automatically.
+- Profiles have a `grade`. A grade with one subject goes straight into it; otherwise the child sees the subject screen (`src/screens/Subjects.tsx`). Screens that need topics render inside `<WithPacks>`.
+- Stored data is version 2. `migrate()` in `src/engine/store.ts` upgrades version-1 data (un-namespaced math ids) in place, and keeps an untouched copy under `limud-app-backup-before-v2`. Never change the storage key `limud-app-v1`. Any future data change needs a new version, a migration step and a test in `src/engine/store.test.ts`.
+- Suite plan and next steps: `docs/roadmap.md`.
 
 ## Deploy
 - Live at https://jbrav-lab.github.io/limud-app/ (GitHub Pages, public repo jbrav-lab/limud-app). Pushing to `main` deploys via `.github/workflows/deploy.yml` (npm ci → test → build → Pages).
