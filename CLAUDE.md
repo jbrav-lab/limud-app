@@ -2,6 +2,11 @@
 
 Hebrew (RTL) grade-5 math learning app for the user's kids. React + TypeScript + Vite PWA. See README.md.
 
+## Deploy
+- Live at https://jbrav-lab.github.io/limud-app/ (GitHub Pages, public repo jbrav-lab/limud-app). Pushing to `main` deploys via `.github/workflows/deploy.yml` (npm ci → test → build → Pages).
+- Commit as the repo's configured noreply author (never the user's real email). `git`/`gh` were installed with winget; in a fresh shell refresh PATH from the Machine+User environment first.
+- Never change the site address (repo name or a custom domain) without warning the user: progress lives in the phone's browser storage for that address, so a new address starts every child from zero (backup/restore in the parent area moves it).
+
 ## Content rules
 - **Word problems (story questions): every fraction appears in Hebrew words AND as a number**, e.g. "מאיה נתנה חצי (1/2) מן התפוחים שלה". Use `frBoth(n, d)` (or `frBoth(n, d, true)` for mixed numbers) from `src/engine/math.ts`. Whole numbers stay as digits. Word-problem prompts are marked with `wordProblem: true` on the question, and `topics.test.ts` checks the rule.
 

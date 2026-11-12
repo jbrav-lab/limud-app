@@ -25,6 +25,9 @@ npm run build      # production build into dist/
 ```
 `http://localhost:5173/?gallery` (dev only) shows every diagram type, for checking visuals.
 
+## Live app
+**https://jbrav-lab.github.io/limud-app/**: published from https://github.com/jbrav-lab/limud-app by `.github/workflows/deploy.yml` on every push to `main`. The workflow runs the tests first, so a failing test blocks the deploy. Installed phones pick up the new version the next time the app is opened while online.
+
 ## Getting it onto the phone
 1. **Quick try (same Wi-Fi):** run `npm run dev`, then open `http://<PC-IP>:5173` in Chrome on the phone. This works, but it needs the PC running and doesn't work offline.
 2. **Installable offline app:** put `dist/` on any free HTTPS host (GitHub Pages, Netlify, Cloudflare Pages). In Chrome on the phone, use ⋮ → "Install app". The app then works fully offline.
