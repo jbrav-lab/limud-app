@@ -6,7 +6,12 @@ export type UserAnswer =
   | { kind: 'fraction'; whole: string; num: string; den: string }
   | { kind: 'choice'; index: number }
   | { kind: 'compare'; value: '<' | '>' | '=' }
-  | { kind: 'divRem'; q: string; r: string };
+  | { kind: 'divRem'; q: string; r: string }
+  | { kind: 'multi'; picked: number[] }
+  /** the order the child arranged: indices into answer.items */
+  | { kind: 'order'; seq: number[] }
+  /** chosen[i] = index into answer.rights picked for left item i, or -1 */
+  | { kind: 'match'; chosen: number[] };
 
 export interface CheckResult {
   correct: boolean;
@@ -39,6 +44,10 @@ export function isComplete(user: UserAnswer): boolean {
       return user.num.trim() !== '' && user.den.trim() !== '' || (user.whole.trim() !== '' && user.num.trim() === '' && user.den.trim() === '');
     case 'divRem':
       return user.q.trim() !== '' && user.r.trim() !== '';
+    case 'multi':
+      return user.picked.length > 0;
+    case 'match':
+      return user.chosen.every((c) => c >= 0);
     default:
       return true;
   }
@@ -59,6 +68,25 @@ export function checkAnswer(answer: Answer, user: UserAnswer): CheckResult {
     case 'divRem': {
       if (user.kind !== 'divRem') return { correct: false };
       return { correct: intOrNull(user.q) === answer.q && intOrNull(user.r) === answer.r };
+    }
+    case 'multi': {
+      if (user.kind !== 'multi') return { correct: false };
+      const want = new Set(answer.correct);
+      const got = new Set(user.picked);
+      const right = [...got].filter((i) => want.has(i)).length;
+      if (right === want.size && got.size === want.size) return { correct: true };
+      if (right === got.size && got.size < want.size) return { correct: false, note: 'מה שבחרתם נכון, אבל יש עוד תשובות נכונות' };
+      return { correct: false };
+    }
+    case 'order': {
+      if (user.kind !== 'order') return { correct: false };
+      return { correct: user.seq.length === answer.items.length && user.seq.every((v, i) => v === i) };
+    }
+    case 'match': {
+      if (user.kind !== 'match') return { correct: false };
+      const wrong = answer.pairs.filter(([, right], i) => answer.rights[user.chosen[i]] !== right).length;
+      if (wrong === 0) return { correct: true };
+      return { correct: false, note: wrong === 1 ? 'כמעט! התאמה אחת לא נכונה' : undefined };
     }
     case 'fraction': {
       if (user.kind !== 'fraction') return { correct: false };

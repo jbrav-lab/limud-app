@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PACKS, loadPack, packIdOf } from './index';
 import { checkAnswer } from '../engine/check';
+import { describeCorrect } from '../components/AnswerInput';
 
 // Every pack is checked: its question generators, ids and content rules.
 const LOADED = await Promise.all(PACKS.map((p) => loadPack(p.id)));
@@ -50,6 +51,27 @@ function assertWellFormed(q: Question, where: string) {
     case 'divRem':
       expect(a.r, where).toBeGreaterThanOrEqual(0);
       break;
+    case 'multi':
+      expect(new Set(a.options).size, `${where} duplicate options`).toBe(a.options.length);
+      expect(a.correct.length, `${where} needs at least one correct option`).toBeGreaterThan(0);
+      expect(a.correct.length, `${where} needs at least one wrong option`).toBeLessThan(a.options.length);
+      expect(a.correct.every((i) => i >= 0 && i < a.options.length), where).toBe(true);
+      expect(checkAnswer(a, { kind: 'multi', picked: [...a.correct] }).correct, `${where} self-check`).toBe(true);
+      break;
+    case 'order':
+      expect(a.items.length, where).toBeGreaterThanOrEqual(3);
+      expect(new Set(a.items).size, `${where} duplicate items`).toBe(a.items.length);
+      expect(a.start.every((v, i) => v === i), `${where} starts already solved`).toBe(false);
+      expect(checkAnswer(a, { kind: 'order', seq: a.items.map((_, i) => i) }).correct, `${where} self-check`).toBe(true);
+      break;
+    case 'match': {
+      expect(a.pairs.length, where).toBeGreaterThanOrEqual(2);
+      expect(new Set(a.rights).size, `${where} duplicate right-hand items`).toBe(a.rights.length);
+      const chosen = a.pairs.map(([, r]) => a.rights.indexOf(r));
+      expect(chosen.every((c) => c >= 0), where).toBe(true);
+      expect(checkAnswer(a, { kind: 'match', chosen }).correct, `${where} self-check`).toBe(true);
+      break;
+    }
   }
   // Word problems: every fraction (and decimal) is written in Hebrew words followed by the number, e.g. "חצי ([[{1/2}]])".
   if (q.wordProblem) {
@@ -62,6 +84,24 @@ function assertWellFormed(q: Question, where: string) {
   const closes = (text.match(/\}/g) ?? []).length;
   expect(opens, `${where} braces`).toBe(closes);
 }
+
+describe('question banks', () => {
+  for (const topic of TOPICS.filter((t) => t.bank)) {
+    it(`${topic.id} has questions at every level, all reachable`, () => {
+      for (const l of [1, 2, 3]) expect(topic.bank!.filter((it) => it.l === l).length, `${topic.id} level ${l}`).toBeGreaterThanOrEqual(3);
+      // over many draws, every item of a level is asked (the bank rotates instead of repeating)
+      for (const l of [1, 2, 3] as Level[]) {
+        const n = topic.bank!.filter((it) => it.l === l).length;
+        const seen = new Set<string>();
+        for (let i = 0; i < n * 30; i++) {
+          const q = topic.generate(l);
+          seen.add(q.prompt + '|' + describeCorrect(q.answer)); // two items may share a prompt with different answers
+        }
+        expect(seen.size, `${topic.id} level ${l}: asked ${seen.size} of ${n}`).toBe(n);
+      }
+    });
+  }
+});
 
 describe('topic generators', () => {
   for (const topic of TOPICS) {

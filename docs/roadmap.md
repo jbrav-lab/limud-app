@@ -9,8 +9,9 @@ Decided 2026-11-12: one app (not one app per subject) for grades 2 and 5 and sub
   - a grade on every profile;
   - a subject screen;
   - subject-aware test prep and parent report.
+- **Done (2026-11-13):** grade 5 science & technology (`g5.science`): 14 topics in 5 units from the תשפ"ז content specification (`docs/curriculum-g5-science.md`), each with a lesson and an authored question bank. New answer types: multiple selection, ordering, matching. Question-bank engine: `src/engine/bank.ts`.
 - **Next:**
-  1. **Question banks + new answer types** for language subjects. Authored questions as data per topic; free text with accepted variants (with or without niqqud), matching, ordering, fill-the-gap, multiple selection; shared reading passages; per-pack text direction (English LTR). Proven with the first language pack.
+  1. **More answer types** for language subjects. Free text with accepted variants (with or without niqqud), fill-the-gap, shared reading passages, and per-pack text direction (English LTR). Build them with the first language pack.
   2. **Grade 2 adaptations.** A grade profile in the design system: larger type and tap targets, read-aloud (text-to-speech) on by default, shorter sessions. Grade 2 follows the *new* Ministry curriculum.
   3. **More packs.** Each is mainly content: a curriculum mapping doc, topics and question banks.
 

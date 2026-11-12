@@ -15,6 +15,12 @@ export function emptyUserAnswer(a: Answer): UserAnswer {
       return { kind: 'compare', value: '=' as const };
     case 'divRem':
       return { kind: 'divRem', q: '', r: '' };
+    case 'multi':
+      return { kind: 'multi', picked: [] };
+    case 'order':
+      return { kind: 'order', seq: [...a.start] };
+    case 'match':
+      return { kind: 'match', chosen: a.pairs.map(() => -1) };
   }
 }
 
@@ -24,7 +30,7 @@ interface Props {
   onChange: (u: UserAnswer) => void;
   onSubmit: (u?: UserAnswer) => void;
   disabled: boolean;
-  /** For choice/compare: which option to highlight as correct/wrong after checking */
+  /** After checking: highlight right/wrong (choice/compare use the fields; multi/order/match read the answer itself) */
   reveal?: { correctIndex?: number; picked?: number; correctSign?: string };
   /** Test mode: mark the option the child picked (neutral color, no right/wrong yet). */
   showSelection?: boolean;
@@ -161,8 +167,106 @@ export function AnswerInput({ answer, value, onChange, onSubmit, disabled, revea
       </div>
     );
   }
+
+  if (answer.kind === 'multi' && value.kind === 'multi') {
+    const want = new Set(answer.correct);
+    return (
+      <div className="multi-wrap">
+        <p className="input-help">אפשר לבחור יותר מתשובה אחת</p>
+        <div className={`choices ${answer.options.some((o) => o.length > 18) ? 'stacked' : ''}`}>
+          {answer.options.map((o, i) => {
+            const on = value.picked.includes(i);
+            const mark = reveal ? (want.has(i) ? 'is-correct' : on ? 'is-wrong' : '') : on ? 'is-selected' : '';
+            return (
+              <button
+                key={i}
+                className={`choice check-choice ${mark}`}
+                disabled={disabled}
+                aria-pressed={on}
+                onClick={() => onChange({ kind: 'multi', picked: on ? value.picked.filter((x) => x !== i) : [...value.picked, i] })}
+              >
+                <span className="tick" aria-hidden>
+                  {on ? '☑' : '☐'}
+                </span>
+                <MathText text={o} />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (answer.kind === 'order' && value.kind === 'order') {
+    const move = (from: number, to: number) => {
+      const seq = [...value.seq];
+      [seq[from], seq[to]] = [seq[to], seq[from]];
+      onChange({ kind: 'order', seq });
+    };
+    return (
+      <div className="order-wrap">
+        <p className="input-help">סדרו בעזרת החצים: מה שבא ראשון – למעלה</p>
+        <ol className="order-list">
+          {value.seq.map((item, pos) => (
+            <li key={item} className={reveal ? (item === pos ? 'is-correct' : 'is-wrong') : ''}>
+              <span className="order-num">{pos + 1}</span>
+              <span className="order-text">
+                <MathText text={answer.items[item]} />
+              </span>
+              <span className="order-btns">
+                <button disabled={disabled || pos === 0} onClick={() => move(pos, pos - 1)} aria-label="להזיז למעלה">
+                  ▲
+                </button>
+                <button disabled={disabled || pos === value.seq.length - 1} onClick={() => move(pos, pos + 1)} aria-label="להזיז למטה">
+                  ▼
+                </button>
+              </span>
+            </li>
+          ))}
+        </ol>
+        {showSelection === false && !disabled && (
+          <button className="link small" onClick={() => onChange({ ...value })}>
+            ✓ זה הסדר שלי
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (answer.kind === 'match' && value.kind === 'match') {
+    return (
+      <div className="match-wrap">
+        <p className="input-help">בחרו לכל פריט את ההתאמה שלו</p>
+        {answer.pairs.map(([left, right], i) => {
+          const ok = answer.rights[value.chosen[i]] === right;
+          return (
+            <label key={i} className={`match-row ${reveal ? (ok ? 'is-correct' : 'is-wrong') : ''}`}>
+              <span className="match-left">
+                <MathText text={left} />
+              </span>
+              <select
+                value={value.chosen[i]}
+                disabled={disabled}
+                onChange={(e) => onChange({ kind: 'match', chosen: value.chosen.map((c, j) => (j === i ? Number(e.target.value) : c)) })}
+              >
+                <option value={-1}>בחרו…</option>
+                {answer.rights.map((r, k) => (
+                  <option key={k} value={k}>
+                    {plain(r)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
   return null;
 }
+
+/** Strip the text markup for places that can only show plain text (e.g. <option>). */
+const plain = (t: string) => t.replace(/\[\[|\]\]|\*\*/g, '').replace(/\{(\d+) (\d+)\/(\d+)\}/g, '$1 $2/$3').replace(/\{([^{}]*)\}/g, '$1');
 
 /** Human-readable (markup) version of a user's answer, for the parent's mistakes list. */
 export function describeUser(u: UserAnswer, a: Answer): string {
@@ -177,6 +281,12 @@ export function describeUser(u: UserAnswer, a: Answer): string {
       return `[[${u.value}]]`;
     case 'divRem':
       return `${u.q} ושארית ${u.r}`;
+    case 'multi':
+      return a.kind === 'multi' ? u.picked.map((i) => a.options[i]).join(' · ') || '—' : '';
+    case 'order':
+      return a.kind === 'order' ? u.seq.map((i, pos) => `${pos + 1}. ${a.items[i]}`).join('  ') : '';
+    case 'match':
+      return a.kind === 'match' ? a.pairs.map(([l], i) => `${l} – ${a.rights[u.chosen[i]] ?? '?'}`).join(' · ') : '';
   }
 }
 
@@ -194,5 +304,11 @@ export function describeCorrect(a: Answer): string {
       return `[[${a.correct}]]`;
     case 'divRem':
       return `${a.q} ושארית ${a.r}`;
+    case 'multi':
+      return a.correct.map((i) => a.options[i]).join(' · ');
+    case 'order':
+      return a.items.map((t, i) => `${i + 1}. ${t}`).join('  ');
+    case 'match':
+      return a.pairs.map(([l, r]) => `${l} – ${r}`).join(' · ');
   }
 }

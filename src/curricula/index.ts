@@ -17,10 +17,12 @@ export const gradeLabel = (g: number) => GRADES.find((x) => x.grade === g)?.labe
 
 export const PACKS: PackInfo[] = [
   { id: 'g5.math', grade: 5, subject: 'math', title: 'חשבון', emoji: '🧮', dir: 'rtl', program: 'תכנית 2006', doc: 'docs/curriculum-grade5.md' },
+  { id: 'g5.science', grade: 5, subject: 'science', title: 'מדע וטכנולוגיה', emoji: '🔬', dir: 'rtl', program: 'מפרטי תוכן תשפ"ז', doc: 'docs/curriculum-g5-science.md' },
 ];
 
 const LOADERS: Record<string, () => Promise<{ default: PackContent }>> = {
   'g5.math': () => import('./g5/math/pack'),
+  'g5.science': () => import('./g5/science/pack'),
 };
 
 export const packInfo = (id: string) => PACKS.find((p) => p.id === id);

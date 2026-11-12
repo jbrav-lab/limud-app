@@ -33,7 +33,13 @@ export type Answer =
   | { kind: 'fraction'; num: number; den: number; form?: 'any' | 'simplest' | 'mixed'; allowWhole?: boolean }
   | { kind: 'choice'; options: RichText[]; correct: number }
   | { kind: 'compare'; correct: '<' | '>' | '=' }
-  | { kind: 'divRem'; q: number; r: number };
+  | { kind: 'divRem'; q: number; r: number }
+  // "choose all that are correct": the child must pick exactly the correct set
+  | { kind: 'multi'; options: RichText[]; correct: number[] }
+  // put items in order; `items` is the correct order, `start` the scrambled order shown (indices into items)
+  | { kind: 'order'; items: RichText[]; start: number[] }
+  // match each left item to one right item; pairs[i] = [left, right]; `rights` = right items in display order
+  | { kind: 'match'; pairs: [RichText, RichText][]; rights: RichText[] };
 
 export interface Question {
   prompt: RichText;
@@ -59,6 +65,8 @@ export interface Topic {
   emoji: string;
   lesson: LessonBlock[];
   generate: (level: Level) => Question;
+  /** For bank-based topics: the authored items (used by tests and future tools). */
+  bank?: readonly { l: Level }[];
 }
 
 export interface Unit {
