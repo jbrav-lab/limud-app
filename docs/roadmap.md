@@ -17,7 +17,10 @@ Decided 2026-11-12: one app (not one app per subject) for grades 2 and 5 and sub
   - per-pack text direction: English content reads left to right (`dirClass`, `.dir-auto`);
   - reading passages are written into the prompt of each question.
 - **Done (2026-11-13):** a child can change their own avatar from the top bar (tap the avatar). New avatars: dog 🐶 and owl 🦉.
-- **Curriculum downloaded, packs not built yet:** grade 4 math (`docs/curriculum-g4-math.md`), science (`docs/curriculum-g4-science.md`) and Hebrew language (`docs/curriculum-g4-hebrew.md`). Building them also means adding grade 4 to `GRADES` in `src/curricula/index.ts`.
+- **Done (2026-11-13):** grade 4, the third grade in the app.
+  - `g4.math`: 17 generated topics in 5 units (2006 program), including Hebrew letters as numbers (שיטת האלף־בית), long division with remainder, primes, divisibility and powers, boxes, symmetry, time and data (`docs/curriculum-g4-math.md`). Check each year whether the new math program has reached grade 4.
+  - `g4.science`: 13 topics in 4 units from the תשפ"ז specification (`docs/curriculum-g4-science.md`).
+  - `g4.hebrew`: 12 topics in 3 units from the end-of-grade-4 milestones (`docs/curriculum-g4-hebrew.md`).
 - **Next:**
   1. **More answer types:** fill-the-gap inside a sentence, and one shared reading passage shown above several questions (today each question repeats its passage). Audio (listening) questions for English.
   2. **Grade 2 adaptations.** A grade profile in the design system: larger type and tap targets, read-aloud (text-to-speech) on by default, shorter sessions. Grade 2 follows the *new* Ministry curriculum.

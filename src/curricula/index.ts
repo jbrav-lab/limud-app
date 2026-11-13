@@ -10,12 +10,16 @@ import type { Pack, PackContent, PackInfo } from './types';
 
 export const GRADES = [
   { grade: 2, label: 'כיתה ב׳' },
+  { grade: 4, label: 'כיתה ד׳' },
   { grade: 5, label: 'כיתה ה׳' },
 ];
 export const DEFAULT_GRADE = 5;
 export const gradeLabel = (g: number) => GRADES.find((x) => x.grade === g)?.label ?? `כיתה ${g}`;
 
 export const PACKS: PackInfo[] = [
+  { id: 'g4.math', grade: 4, subject: 'math', title: 'חשבון', emoji: '🧮', dir: 'rtl', program: 'תכנית 2006', doc: 'docs/curriculum-g4-math.md' },
+  { id: 'g4.science', grade: 4, subject: 'science', title: 'מדע וטכנולוגיה', emoji: '🔬', dir: 'rtl', program: 'מפרטי תוכן תשפ"ז', doc: 'docs/curriculum-g4-science.md' },
+  { id: 'g4.hebrew', grade: 4, subject: 'hebrew', title: 'שפה ולשון', emoji: '📝', dir: 'rtl', program: 'חינוך לשוני תשס"ג – הישגים נדרשים', doc: 'docs/curriculum-g4-hebrew.md' },
   { id: 'g5.math', grade: 5, subject: 'math', title: 'חשבון', emoji: '🧮', dir: 'rtl', program: 'תכנית 2006', doc: 'docs/curriculum-grade5.md' },
   { id: 'g5.science', grade: 5, subject: 'science', title: 'מדע וטכנולוגיה', emoji: '🔬', dir: 'rtl', program: 'מפרטי תוכן תשפ"ז', doc: 'docs/curriculum-g5-science.md' },
   { id: 'g5.hebrew', grade: 5, subject: 'hebrew', title: 'שפה ולשון', emoji: '📝', dir: 'rtl', program: 'חינוך לשוני תשס"ג – הישגים נדרשים', doc: 'docs/curriculum-g5-hebrew.md' },
@@ -23,6 +27,9 @@ export const PACKS: PackInfo[] = [
 ];
 
 const LOADERS: Record<string, () => Promise<{ default: PackContent }>> = {
+  'g4.math': () => import('./g4/math/pack'),
+  'g4.science': () => import('./g4/science/pack'),
+  'g4.hebrew': () => import('./g4/hebrew/pack'),
   'g5.math': () => import('./g5/math/pack'),
   'g5.science': () => import('./g5/science/pack'),
   'g5.hebrew': () => import('./g5/hebrew/pack'),

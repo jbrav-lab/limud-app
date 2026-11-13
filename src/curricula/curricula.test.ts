@@ -22,6 +22,7 @@ describe('curriculum registry', () => {
 import type { Level, Question } from '../engine/types';
 import { fmt, fracWords, frBoth } from '../engine/math';
 import { rootAnswers } from './g5/hebrew/forms';
+import { toHebrewNumeral } from './g4/math/numbers';
 
 const RUNS = 400;
 
@@ -134,6 +135,19 @@ describe('fractions in Hebrew words', () => {
   it('is used by the fraction word problems', () => {
     const seen = TOPICS.find((t) => t.id === 'g5.math.fraction-word')!;
     for (let i = 0; i < 50; i++) expect(seen.generate(1).wordProblem).toBe(true);
+  });
+});
+
+describe('Hebrew letters as numbers', () => {
+  it('writes numbers in letters with geresh and gershayim', () => {
+    expect(toHebrewNumeral(5)).toBe('ה׳');
+    expect(toHebrewNumeral(18)).toBe('י״ח');
+    expect(toHebrewNumeral(15)).toBe('ט״ו');
+    expect(toHebrewNumeral(16)).toBe('ט״ז');
+    expect(toHebrewNumeral(115)).toBe('קט״ו');
+    expect(toHebrewNumeral(248)).toBe('רמ״ח');
+    expect(toHebrewNumeral(400)).toBe('ת׳');
+    expect(toHebrewNumeral(613)).toBe('תרי״ג');
   });
 });
 

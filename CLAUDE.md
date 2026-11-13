@@ -1,6 +1,6 @@
 # Project notes for Claude
 
-Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grade 5 math, science, Hebrew language and English built so far; grade 4 curricula mapped in `docs/curriculum-g4-*.md`, packs not built). React + TypeScript + Vite PWA. See README.md.
+Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grades 4 and 5 built: grade 4 math, science and Hebrew language; grade 5 math, science, Hebrew language and English). React + TypeScript + Vite PWA. See README.md.
 
 ## Curriculum suite (one app, many subjects)
 - Hierarchy: Grade → Subject pack → Unit → Topic. Registry: `src/curricula/index.ts` (`PACKS` info + lazy `LOADERS`). Each pack lives in `src/curricula/g<grade>/<subject>/pack.ts` and exports local ids; the registry namespaces them (`g5.math.fractions`). Store and route ids are always namespaced.

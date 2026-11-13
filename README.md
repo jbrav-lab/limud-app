@@ -1,7 +1,7 @@
 # לומדים – Learning app
 
 A Hebrew (RTL) learning app for kids that follows the Israeli Ministry of Education (ממלכתי) curriculum.
-Grade 5 subjects: math ([map](docs/curriculum-grade5.md)), science & technology ([map](docs/curriculum-g5-science.md)), Hebrew language ([map](docs/curriculum-g5-hebrew.md)) and English ([map](docs/curriculum-g5-english.md)). Grade 4 curricula are mapped in `docs/curriculum-g4-*.md`. Plans: [docs/roadmap.md](docs/roadmap.md).
+Grade 5 subjects: math ([map](docs/curriculum-grade5.md)), science & technology ([map](docs/curriculum-g5-science.md)), Hebrew language ([map](docs/curriculum-g5-hebrew.md)) and English ([map](docs/curriculum-g5-english.md)). Grade 4 subjects: math, science & technology and Hebrew language (maps in `docs/curriculum-g4-*.md`). Plans: [docs/roadmap.md](docs/roadmap.md).
 
 Built as a web app (React + TypeScript + Vite) that works offline (PWA). It can be wrapped as an Android APK with Capacitor later.
 
