@@ -1,4 +1,6 @@
-import { childProgress, mastery, topicProgress, useData, type AppData } from '../engine/store';
+import { useEffect, useState } from 'react';
+import { actions, childProgress, mastery, topicProgress, useData, type AppData } from '../engine/store';
+import { AvatarGrid } from './Profiles';
 import type { Pack } from '../curricula/types';
 
 export function Stars({ n, of = 3 }: { n: number; of?: number }) {
@@ -42,18 +44,62 @@ export function badges(data: AppData, pid: string, pack: Pack): Badge[] {
   return list;
 }
 
-/** The child's top bar: who is learning (tap to switch), stars, streak and the parent lock. */
+/** A bottom sheet where the child picks a new avatar. Saved only on "שמירה". */
+function AvatarSheet({ pid, current, onClose }: { pid: string; current: string; onClose: () => void }) {
+  const [avatar, setAvatar] = useState(current);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label="בחירת דמות" onClick={(e) => e.stopPropagation()}>
+        <h2>בחרו דמות חדשה</h2>
+        <div className="sheet-preview" aria-hidden>
+          {avatar}
+        </div>
+        <AvatarGrid value={avatar} onPick={setAvatar} />
+        <div className="row">
+          <button
+            className="btn primary"
+            onClick={() => {
+              actions.setAvatar(pid, avatar);
+              onClose();
+            }}
+          >
+            שמירה
+          </button>
+          <button className="btn ghost" onClick={onClose}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The child's top bar: their avatar (tap to change it), name (tap to switch child), stars, streak and the parent lock. */
 export function TopBar({ pid, onSwitch, onParent }: { pid: string; onSwitch: () => void; onParent: () => void }) {
   const data = useData();
+  const [picking, setPicking] = useState(false);
   const profile = data.profiles.find((p) => p.id === pid);
   if (!profile) return null;
   const c = childProgress(data, pid);
   return (
     <header className="topbar">
-      <button className="me" onClick={onSwitch} aria-label="החלפת ילד/ה">
-        <span className="avatar sm">{profile.avatar}</span>
-        <span>{profile.name}</span>
-      </button>
+      <div className="me">
+        <button className="me-avatar" onClick={() => setPicking(true)} aria-label="החלפת הדמות שלי">
+          <span className="avatar sm">{profile.avatar}</span>
+          <span className="edit-dot" aria-hidden>
+            ✏️
+          </span>
+        </button>
+        <button className="me-name" onClick={onSwitch} aria-label="החלפת ילד/ה">
+          {profile.name}
+        </button>
+      </div>
+      {picking && <AvatarSheet pid={pid} current={profile.avatar} onClose={() => setPicking(false)} />}
       <div className="chips">
         <span className="chip" title="כוכבים">
           ⭐ {c.stars}

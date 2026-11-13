@@ -6,7 +6,7 @@ import { checkAnswer, isComplete, type UserAnswer } from '../engine/check';
 import { DIFFICULTIES, buildExam, verbalGrade, type ExamQuestion } from '../engine/exam';
 import { play } from '../engine/sound';
 import { actions, getData, topicProgress } from '../engine/store';
-import { topicById } from '../curricula';
+import { dirClass, topicById } from '../curricula';
 import type { ExamConfig } from './ExamSetup';
 
 interface Graded {
@@ -93,7 +93,7 @@ export function ExamRun({ pid, config, onExit, onNew }: { pid: string; config: E
         ))}
       </nav>
 
-      <div className="card question" key={index}>
+      <div className={`card question ${dirClass(e.topicId)}`} key={index}>
         <div className="qhead">
           <span className="muted">
             {topic.emoji} {topic.title}
@@ -244,7 +244,7 @@ function ExamResults({
             const g = graded[i];
             if (onlyWrong && g.correct) return null;
             return (
-              <li key={i} className={g.correct ? 'right' : 'wrong'}>
+              <li key={i} className={`${g.correct ? 'right' : 'wrong'} ${dirClass(e.topicId)}`}>
                 <button className="review-head" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
                   <span className="mark">{g.correct ? '✓' : '✗'}</span>
                   <span className="rq">

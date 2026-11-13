@@ -21,6 +21,8 @@ export function emptyUserAnswer(a: Answer): UserAnswer {
       return { kind: 'order', seq: [...a.start] };
     case 'match':
       return { kind: 'match', chosen: a.pairs.map(() => -1) };
+    case 'text':
+      return { kind: 'text', text: '' };
   }
 }
 
@@ -65,6 +67,28 @@ export function AnswerInput({ answer, value, onChange, onSubmit, disabled, revea
           aria-label="התשובה"
         />
         {answer.unit && <span className="ans-unit">{answer.unit}</span>}
+      </div>
+    );
+  }
+
+  if (answer.kind === 'text' && value.kind === 'text') {
+    return (
+      <div className="answer-row">
+        <input
+          ref={first}
+          className="text-input"
+          dir="auto"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={value.text}
+          disabled={disabled}
+          maxLength={40}
+          onChange={(e) => onChange({ kind: 'text', text: e.target.value })}
+          onKeyDown={enter}
+          aria-label="התשובה"
+        />
       </div>
     );
   }
@@ -287,6 +311,8 @@ export function describeUser(u: UserAnswer, a: Answer): string {
       return a.kind === 'order' ? u.seq.map((i, pos) => `${pos + 1}. ${a.items[i]}`).join('  ') : '';
     case 'match':
       return a.kind === 'match' ? a.pairs.map(([l], i) => `${l} – ${a.rights[u.chosen[i]] ?? '?'}`).join(' · ') : '';
+    case 'text':
+      return u.text.trim() || '—';
   }
 }
 
@@ -310,5 +336,7 @@ export function describeCorrect(a: Answer): string {
       return a.items.map((t, i) => `${i + 1}. ${t}`).join('  ');
     case 'match':
       return a.pairs.map(([l, r]) => `${l} – ${r}`).join(' · ');
+    case 'text':
+      return a.accept[0];
   }
 }

@@ -39,7 +39,9 @@ export type Answer =
   // put items in order; `items` is the correct order, `start` the scrambled order shown (indices into items)
   | { kind: 'order'; items: RichText[]; start: number[] }
   // match each left item to one right item; pairs[i] = [left, right]; `rights` = right items in display order
-  | { kind: 'match'; pairs: [RichText, RichText][]; rights: RichText[] };
+  | { kind: 'match'; pairs: [RichText, RichText][]; rights: RichText[] }
+  // a typed word or short phrase; any of `accept` is right (compared without case, niqqud or end punctuation). accept[0] is shown as the answer
+  | { kind: 'text'; accept: string[] };
 
 export interface Question {
   prompt: RichText;

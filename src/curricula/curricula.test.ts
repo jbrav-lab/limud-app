@@ -21,6 +21,7 @@ describe('curriculum registry', () => {
 });
 import type { Level, Question } from '../engine/types';
 import { fmt, fracWords, frBoth } from '../engine/math';
+import { rootAnswers } from './g5/hebrew/forms';
 
 const RUNS = 400;
 
@@ -63,6 +64,10 @@ function assertWellFormed(q: Question, where: string) {
       expect(new Set(a.items).size, `${where} duplicate items`).toBe(a.items.length);
       expect(a.start.every((v, i) => v === i), `${where} starts already solved`).toBe(false);
       expect(checkAnswer(a, { kind: 'order', seq: a.items.map((_, i) => i) }).correct, `${where} self-check`).toBe(true);
+      break;
+    case 'text':
+      expect(a.accept.length, where).toBeGreaterThan(0);
+      for (const t of a.accept) expect(checkAnswer(a, { kind: 'text', text: t }).correct, `${where} self-check ${t}`).toBe(true);
       break;
     case 'match': {
       expect(a.pairs.length, where).toBeGreaterThanOrEqual(2);
@@ -140,6 +145,18 @@ describe('answer checking', () => {
     const m = { kind: 'fraction' as const, num: 7, den: 4, form: 'mixed' as const };
     expect(checkAnswer(m, { kind: 'fraction', whole: '1', num: '3', den: '4' }).correct).toBe(true);
     expect(checkAnswer(m, { kind: 'fraction', whole: '', num: '7', den: '4' }).correct).toBe(false);
+  });
+  it('accepts typed words without case, niqqud, curly apostrophes or end punctuation', () => {
+    const en = { kind: 'text' as const, accept: ["isn't"] };
+    expect(checkAnswer(en, { kind: 'text', text: '  Isn’t. ' }).correct).toBe(true);
+    expect(checkAnswer(en, { kind: 'text', text: 'is not' }).correct).toBe(false);
+    const he = { kind: 'text' as const, accept: ['לשחק'] };
+    expect(checkAnswer(he, { kind: 'text', text: 'לְשַׂחֵק' }).correct).toBe(true);
+    expect(checkAnswer(he, { kind: 'text', text: 'לשחוק' }).correct).toBe(false);
+  });
+  it('accepts a root typed with or without separators and final letters', () => {
+    const a = { kind: 'text' as const, accept: rootAnswers('הלכ') };
+    for (const t of ['הלך', 'ה.ל.כ', 'ה-ל-ך', 'ה ל כ']) expect(checkAnswer(a, { kind: 'text', text: t }).correct, t).toBe(true);
   });
   it('parses numbers typed in different ways', () => {
     const a = { kind: 'number' as const, value: 3.5 };

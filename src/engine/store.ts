@@ -203,6 +203,10 @@ export const actions = {
   editProfile(id: string, fields: ProfileFields) {
     update((d) => ({ ...d, profiles: d.profiles.map((p) => (p.id === id ? { ...p, ...fields } : p)) }));
   },
+  /** The child changes their own avatar (name, grade and theme stay in the parent area). */
+  setAvatar(id: string, avatar: string) {
+    update((d) => ({ ...d, profiles: d.profiles.map((p) => (p.id === id ? { ...p, avatar } : p)) }));
+  },
   deleteProfile(id: string) {
     update((d) => {
       const progress = { ...d.progress };

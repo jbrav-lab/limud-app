@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
-import { PACKS, gradeLabel, packInfo, topicById } from '../curricula';
+import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
 import { Stars } from './Home';
@@ -205,7 +205,7 @@ function ChildReport({ pid, allPacks }: { pid: string; allPacks: Pack[] }) {
         {c.mistakes.length === 0 && <p className="muted">אין עדיין טעויות 🙂</p>}
         <ul className="mistakes">
           {c.mistakes.slice(0, 20).map((m, i) => (
-            <li key={i}>
+            <li key={i} className={dirClass(m.topicId)}>
               <div className="mmeta">
                 {topicById(m.topicId)?.emoji} {topicById(m.topicId)?.title} · {fmtDate(m.at)}
               </div>

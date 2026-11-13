@@ -1,6 +1,6 @@
 # Project notes for Claude
 
-Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grade-5 math and grade-5 science built so far). React + TypeScript + Vite PWA. See README.md.
+Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grade 5 math, science, Hebrew language and English built so far; grade 4 curricula mapped in `docs/curriculum-g4-*.md`, packs not built). React + TypeScript + Vite PWA. See README.md.
 
 ## Curriculum suite (one app, many subjects)
 - Hierarchy: Grade → Subject pack → Unit → Topic. Registry: `src/curricula/index.ts` (`PACKS` info + lazy `LOADERS`). Each pack lives in `src/curricula/g<grade>/<subject>/pack.ts` and exports local ids; the registry namespaces them (`g5.math.fractions`). Store and route ids are always namespaced.
@@ -15,8 +15,9 @@ Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grade-5 mat
 - Never change the site address (repo name or a custom domain) without warning the user: progress lives in the phone's browser storage for that address, so a new address starts every child from zero (backup/restore in the parent area moves it).
 
 ## Question banks (science and future language subjects)
-- Authored questions live as data in the pack files, built with `bankTopic` from `src/engine/bank.ts`. Item shapes: choice `{q, a, d}`, true/false `{tf, t}`, multiple selection `{q, multi, d}`, ordering `{q, order}`, matching `{q, match}`, number `{q, num}`; each has a level `l` (1–3), an explanation `why`, and an optional `hint`.
+- Authored questions live as data in the pack files, built with `bankTopic` from `src/engine/bank.ts`. Item shapes: choice `{q, a, d}`, true/false `{tf, t}`, multiple selection `{q, multi, d}`, ordering `{q, order}`, matching `{q, match}`, number `{q, num}`, typed word `{q, text: [accepted…]}` (compared without case, niqqud or end punctuation; Hebrew roots via `rootAnswers()`); each has a level `l` (1–3), an explanation `why`, and an optional `hint`.
 - `curricula.test.ts` requires at least 3 items per level per topic, checks every item is reachable, and self-checks each answer type. Every bank item is a word problem, so the fraction/decimal rule below applies.
+- English (`g5.english`, `dir: 'ltr'`): prompts and options in English, lessons and explanations in Hebrew. LTR content gets `dirClass(topicId)` (`.dir-auto`: each line takes its direction from its text). Write times as `7:30`, not `7.30` (the decimal rule).
 - Write standard Hebrew (full spelling), use the plural imperative (בחרו, סדרו, התאימו), and check facts against the curriculum doc for that pack.
 
 ## Content rules

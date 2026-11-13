@@ -7,7 +7,7 @@ import { pick } from '../engine/math';
 import { play } from '../engine/sound';
 import { actions, getData, mastery, topicProgress } from '../engine/store';
 import type { Level, Question } from '../engine/types';
-import { topicById } from '../curricula';
+import { dirClass, topicById } from '../curricula';
 import { Stars } from './Home';
 
 export const SESSION_LEN = 10;
@@ -207,7 +207,7 @@ export function Practice({ pid, topicIds, title, onExit }: { pid: string; topicI
 
       {toast && <div className="toast">{toast}</div>}
 
-      <div className={`card question ${phase}`} key={index}>
+      <div className={`card question ${phase} ${dirClass(cur.topicId)}`} key={index}>
         <p className="prompt">
           <MathText text={cur.q.prompt} />
         </p>

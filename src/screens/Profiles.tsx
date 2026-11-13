@@ -3,7 +3,20 @@ import { actions, childProgress, useData, type ProfileFields } from '../engine/s
 import { DEFAULT_GRADE, GRADES, gradeLabel, packsForGrade } from '../curricula';
 import { THEMES, applyTheme, validTheme } from '../themes';
 
-export const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐙', '🐯', '🐨', '🐧', '🦖', '🐬', '🚀', '⚽', '🎨', '🌟'];
+export const AVATARS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐙', '🐯', '🐨', '🐧', '🐶', '🦉', '🦖', '🐬', '🚀', '⚽', '🎨', '🌟'];
+
+/** The avatar choices as a grid of buttons; the chosen one is highlighted. */
+export function AvatarGrid({ value, onPick }: { value: string; onPick: (a: string) => void }) {
+  return (
+    <div className="avatar-grid">
+      {AVATARS.map((a) => (
+        <button key={a} className={`avatar-btn ${a === value ? 'selected' : ''}`} onClick={() => onPick(a)} aria-label={a} aria-pressed={a === value}>
+          {a}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function ProfileForm({
   initial,
@@ -45,13 +58,7 @@ export function ProfileForm({
       </div>
       <div className="field">
         בחרו דמות
-        <div className="avatar-grid">
-          {AVATARS.map((a) => (
-            <button key={a} className={`avatar-btn ${a === avatar ? 'selected' : ''}`} onClick={() => setAvatar(a)} aria-label={a}>
-              {a}
-            </button>
-          ))}
-        </div>
+        <AvatarGrid value={avatar} onPick={setAvatar} />
       </div>
       <div className="field">
         בחרו צבעים

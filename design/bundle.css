@@ -81,8 +81,8 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .form { display: flex; flex-direction: column; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
 .field input { border: 2px solid var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 1.1rem; }
-.avatar-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
-@media (max-width: 420px) { .avatar-grid { grid-template-columns: repeat(4, 1fr); } }
+.avatar-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; }
+@media (max-width: 420px) { .avatar-grid { grid-template-columns: repeat(6, 1fr); } }
 .avatar-btn { font-size: 1.7rem; background: var(--tint); border: 2px solid transparent; border-radius: var(--radius-sm); padding: 4px 0; }
 .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-gap); }
 .theme-btn {
@@ -100,6 +100,13 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
 .me { display: flex; align-items: center; gap: 8px; background: none; border: none; font-weight: 700; font-size: 1.15rem; padding: 0; }
 .chips { display: flex; gap: 6px; }
+.me-avatar { position: relative; background: var(--tint); border: none; border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; }
+.me-avatar .edit-dot { position: absolute; bottom: -2px; inset-inline-end: -4px; font-size: 0.7rem; background: var(--card); border-radius: 50%; padding: 2px; box-shadow: var(--shadow); }
+.me-name { background: none; border: none; font-weight: 700; font-size: 1.15rem; padding: 0; color: inherit; }
+.sheet-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 80%, transparent); backdrop-filter: blur(2px); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+.sheet { background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius) var(--radius) 0 0; padding: 18px 16px 22px; width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
+.sheet h2 { margin: 0; text-align: center; }
+.sheet-preview { text-align: center; font-size: 3.4rem; line-height: 1.1; }
 .chip { background: var(--card); border-radius: var(--radius-pill); padding: 5px 12px; font-weight: 700; box-shadow: var(--shadow); white-space: nowrap; border: none; }
 .btnchip { padding: 5px 10px; }
 
@@ -367,3 +374,15 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
   width: 100%; font: inherit; font-size: 0.95rem; padding: 8px; border-radius: var(--radius-sm);
   border: 2px solid var(--accent-soft); background: var(--field); color: var(--ink);
 }
+
+/* typed word answers (language subjects) */
+.text-input {
+  width: min(320px, 100%); text-align: center; font-size: 1.4rem; font-weight: 600; padding: 8px 12px;
+  border: 3px solid var(--accent-soft); border-radius: var(--radius-md); background: var(--field); outline: none; color: var(--ink);
+}
+.text-input:focus { border-color: var(--accent); background: var(--card); }
+
+/* Packs whose content is left-to-right (English): every paragraph, option and line takes its direction
+   from its own text, so English reads LTR and the Hebrew explanations stay RTL. Layout direction is unchanged. */
+.dir-auto :is(p, li, .example, figcaption, .choice, .order-text, .match-left, .rq, .text-input) { unicode-bidi: plaintext; }
+.dir-auto :is(p, li, .example, figcaption) { text-align: start; }

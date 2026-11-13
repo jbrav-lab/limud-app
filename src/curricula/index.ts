@@ -18,11 +18,15 @@ export const gradeLabel = (g: number) => GRADES.find((x) => x.grade === g)?.labe
 export const PACKS: PackInfo[] = [
   { id: 'g5.math', grade: 5, subject: 'math', title: 'חשבון', emoji: '🧮', dir: 'rtl', program: 'תכנית 2006', doc: 'docs/curriculum-grade5.md' },
   { id: 'g5.science', grade: 5, subject: 'science', title: 'מדע וטכנולוגיה', emoji: '🔬', dir: 'rtl', program: 'מפרטי תוכן תשפ"ז', doc: 'docs/curriculum-g5-science.md' },
+  { id: 'g5.hebrew', grade: 5, subject: 'hebrew', title: 'שפה ולשון', emoji: '📝', dir: 'rtl', program: 'חינוך לשוני תשס"ג – הישגים נדרשים', doc: 'docs/curriculum-g5-hebrew.md' },
+  { id: 'g5.english', grade: 5, subject: 'english', title: 'אנגלית', emoji: '🔤', dir: 'ltr', program: 'English Curriculum 2020', doc: 'docs/curriculum-g5-english.md' },
 ];
 
 const LOADERS: Record<string, () => Promise<{ default: PackContent }>> = {
   'g5.math': () => import('./g5/math/pack'),
   'g5.science': () => import('./g5/science/pack'),
+  'g5.hebrew': () => import('./g5/hebrew/pack'),
+  'g5.english': () => import('./g5/english/pack'),
 };
 
 export const packInfo = (id: string) => PACKS.find((p) => p.id === id);
@@ -55,6 +59,9 @@ export function loadPack(id: string): Promise<Pack> {
   loading.set(id, p);
   return p;
 }
+
+/** CSS class for content of a left-to-right pack (English): each line takes its direction from its own text. */
+export const dirClass = (namespacedId: string) => (packInfo(packIdOf(namespacedId))?.dir === 'ltr' ? 'dir-auto' : '');
 
 export const loadedPack = (id: string) => loaded.get(id);
 /** Synchronous lookups — only valid once the topic's pack is loaded (screens render inside <WithPacks>). */

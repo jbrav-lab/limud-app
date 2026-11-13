@@ -1,7 +1,7 @@
-# לומדים חשבון – Learning app (grade 5 math)
+# לומדים – Learning app
 
 A Hebrew (RTL) learning app for kids that follows the Israeli Ministry of Education (ממלכתי) curriculum.
-It starts with grade 5 math. The topic map is in [docs/curriculum-grade5.md](docs/curriculum-grade5.md).
+Grade 5 subjects: math ([map](docs/curriculum-grade5.md)), science & technology ([map](docs/curriculum-g5-science.md)), Hebrew language ([map](docs/curriculum-g5-hebrew.md)) and English ([map](docs/curriculum-g5-english.md)). Grade 4 curricula are mapped in `docs/curriculum-g4-*.md`. Plans: [docs/roadmap.md](docs/roadmap.md).
 
 Built as a web app (React + TypeScript + Vite) that works offline (PWA). It can be wrapped as an Android APK with Capacitor later.
 
@@ -39,6 +39,6 @@ The look is defined in a Claude Design System: https://claude.ai/artifact/Qvrx5U
 To change the look, edit it in the design system and ask Claude to pull it into the code (see CLAUDE.md).
 
 ## Adding content
-Topics live in `src/topics/*.ts`. Each topic has `lesson` blocks and a `generate(level)` function that returns a question.
+Subjects are packs in `src/curricula/g<grade>/<subject>/` (see CLAUDE.md). Math topics have a `generate(level)` function; other subjects use authored question banks (`src/engine/bank.ts`).
 Text markup: `{3/4}` is a fraction, `{2 3/4}` a mixed number, `[[...]]` left-to-right math inside Hebrew text, and `**bold**`.
-A new grade or subject is a new set of topic files plus units in `src/topics/index.ts`.
+A new grade or subject is a new pack registered in `src/curricula/index.ts`.

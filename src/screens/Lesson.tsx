@@ -1,7 +1,7 @@
 import { Expression, MathText } from '../components/MathText';
 import { Visual } from '../components/Visual';
 import { mastery, topicProgress, useData } from '../engine/store';
-import { topicById, unitById } from '../curricula';
+import { dirClass, topicById, unitById } from '../curricula';
 import { Stars } from './Home';
 
 export function Lesson({ pid, topicId, onPractice, onBack }: { pid: string; topicId: string; onPractice: () => void; onBack: () => void }) {
@@ -34,7 +34,7 @@ export function Lesson({ pid, topicId, onPractice, onBack }: { pid: string; topi
       </div>
 
       <h2>📘 בקצרה</h2>
-      <div className="card lesson-body">
+      <div className={`card lesson-body ${dirClass(topicId)}`}>
         {topic.lesson.map((b, i) => {
           switch (b.kind) {
             case 'text':

@@ -11,7 +11,8 @@ export type UserAnswer =
   /** the order the child arranged: indices into answer.items */
   | { kind: 'order'; seq: number[] }
   /** chosen[i] = index into answer.rights picked for left item i, or -1 */
-  | { kind: 'match'; chosen: number[] };
+  | { kind: 'match'; chosen: number[] }
+  | { kind: 'text'; text: string };
 
 export interface CheckResult {
   correct: boolean;
@@ -46,11 +47,30 @@ export function isComplete(user: UserAnswer): boolean {
       return user.q.trim() !== '' && user.r.trim() !== '';
     case 'multi':
       return user.picked.length > 0;
+    case 'text':
+      return user.text.trim() !== '';
     case 'match':
       return user.chosen.every((c) => c >= 0);
     default:
       return true;
   }
+}
+
+/**
+ * Normalize typed text for comparison: no niqqud or cantillation, one kind of apostrophe and quote,
+ * lower case, single spaces, no punctuation at the ends.
+ */
+export function normalizeText(t: string): string {
+  return t
+    .normalize('NFC')
+    .replace(/־/g, '-') // maqaf → hyphen (before the niqqud range below removes it)
+    .replace(/[֑-ׇ]/g, '') // niqqud and cantillation
+    .replace(/[‘’׳`´]/g, "'")
+    .replace(/[“”״]/g, '"')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[\s.,!?;:"]+|[\s.,!?;:"]+$/g, '');
 }
 
 export function checkAnswer(answer: Answer, user: UserAnswer): CheckResult {
@@ -87,6 +107,11 @@ export function checkAnswer(answer: Answer, user: UserAnswer): CheckResult {
       const wrong = answer.pairs.filter(([, right], i) => answer.rights[user.chosen[i]] !== right).length;
       if (wrong === 0) return { correct: true };
       return { correct: false, note: wrong === 1 ? 'כמעט! התאמה אחת לא נכונה' : undefined };
+    }
+    case 'text': {
+      if (user.kind !== 'text') return { correct: false };
+      const got = normalizeText(user.text);
+      return { correct: answer.accept.some((a) => normalizeText(a) === got) };
     }
     case 'fraction': {
       if (user.kind !== 'fraction') return { correct: false };

@@ -10,6 +10,7 @@ import { shuffle } from './math';
  *   order:   { q, order: [items in the correct order] }
  *   match:   { q, match: [[left, right], ...] }
  *   number:  { q, num, unit? }
+ *   text:    { q, text: [accepted answers; the first is shown as the answer] }
  * `why` is the explanation shown after answering; `hint` is optional.
  */
 interface Base {
@@ -25,6 +26,7 @@ export type BankItem = Base &
     | { q: RichText; order: RichText[] }
     | { q: RichText; match: [RichText, RichText][] }
     | { q: RichText; num: number; unit?: string }
+    | { q: RichText; text: string[] }
   );
 
 export const TRUE_LABEL = 'נכון ✔';
@@ -52,6 +54,9 @@ export function bankQuestion(item: BankItem): Question {
   }
   if ('match' in item) {
     return { ...common, prompt: item.q, answer: { kind: 'match', pairs: item.match, rights: shuffle(item.match.map(([, r]) => r)) } };
+  }
+  if ('text' in item) {
+    return { ...common, prompt: item.q, answer: { kind: 'text', accept: item.text } };
   }
   return { ...common, prompt: item.q, answer: { kind: 'number', value: item.num, unit: item.unit } };
 }
