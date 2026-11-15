@@ -1,4 +1,4 @@
-import { migrate, type AppData } from './store';
+import { isUuid, migrate, type AppData } from './store';
 
 /**
  * Backup files (export/restore in the parent area).
@@ -46,6 +46,7 @@ function num(x: unknown, where: string): number {
 }
 
 const PROFILE_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const RECORD_ID = /^[0-9a-f-]{36}$/i;
 const TOPIC_ID = /^[a-z0-9.-]{1,80}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -64,19 +65,56 @@ function topicProgress(x: unknown, where: string) {
     secondTry: int(x.secondTry, where)!,
     byLevel: byLevel.map((v, i) => int(v, `${where}.byLevel[${i}]`)!) as [number, number, number],
     lastAt: num(x.lastAt, where),
+    ...(x.updatedAt !== undefined ? { updatedAt: num(x.updatedAt, where) } : {}),
   };
 }
 
-function child(x: unknown, where: string) {
-  if (!isObj(x)) return fail(where);
+function recordId(x: unknown, where: string, optional: boolean): { id?: string } {
+  if (x === undefined && optional) return {};
+  if (typeof x !== 'string' || !RECORD_ID.test(x)) return fail(`${where}.id`);
+  return { id: x };
+}
+
+function dailyMap(x: unknown, where: string): Record<string, number> {
   const daily: Record<string, number> = {};
-  if (x.daily !== undefined) {
-    if (!isObj(x.daily)) fail(`${where}.daily`);
-    for (const k of keysOf(x.daily as Record<string, unknown>, 5000, `${where}.daily`)) {
-      if (!DAY.test(k)) fail(`${where}.daily key`);
-      daily[k] = int((x.daily as Record<string, unknown>)[k], `${where}.daily`)!;
-    }
+  if (x === undefined) return daily;
+  if (!isObj(x)) return fail(where);
+  for (const k of keysOf(x, 5000, where)) {
+    if (!DAY.test(k)) fail(`${where} key`);
+    daily[k] = int(x[k], where)!;
   }
+  return daily;
+}
+
+/** Version 3: one counter row per device. */
+function deviceRows(x: unknown, where: string) {
+  if (!isObj(x)) return fail(where);
+  const rows: Record<string, unknown> = {};
+  for (const k of keysOf(x, 50, where)) {
+    if (!isUuid(k)) fail(`${where} key`);
+    const r = x[k];
+    const w = `${where}.${k}`;
+    if (!isObj(r)) return fail(w);
+    let seed: { lastDay: string; days: number } | undefined;
+    if (r.streakSeed !== undefined) {
+      const sd = r.streakSeed;
+      if (!isObj(sd)) return fail(`${w}.streakSeed`);
+      const lastDay = str(sd.lastDay, 10, w)!;
+      if (!DAY.test(lastDay)) fail(`${w}.streakSeed`);
+      seed = { lastDay, days: int(sd.days, w, 5000)! };
+    }
+    rows[k] = {
+      stars: int(r.stars, `${w}.stars`)!,
+      sessions: int(r.sessions, `${w}.sessions`)!,
+      daily: dailyMap(r.daily, `${w}.daily`),
+      ...(seed ? { streakSeed: seed } : {}),
+    };
+  }
+  return rows;
+}
+
+function child(x: unknown, where: string, v3: boolean) {
+  if (!isObj(x)) return fail(where);
   const topics: Record<string, ReturnType<typeof topicProgress>> = {};
   if (x.topics !== undefined) {
     if (!isObj(x.topics)) fail(`${where}.topics`);
@@ -96,6 +134,7 @@ function child(x: unknown, where: string) {
     const topicId = str(m.topicId, 80, w)!;
     if (!TOPIC_ID.test(topicId)) fail(w);
     return {
+      ...recordId(m.id, w, !v3),
       at: num(m.at, w),
       topicId,
       prompt: str(m.prompt, 4000, w)!,
@@ -114,6 +153,7 @@ function child(x: unknown, where: string) {
     });
     const packId = str(e.packId, 40, w, true);
     return {
+      ...recordId(e.id, w, !v3),
       at: num(e.at, w),
       topicIds,
       ...(packId !== undefined ? { packId } : {}),
@@ -123,11 +163,12 @@ function child(x: unknown, where: string) {
       score: int(e.score, w, 100)!,
     };
   });
+  if (v3) return { byDevice: deviceRows(x.byDevice, `${where}.byDevice`), topics, mistakes, exams };
   return {
     stars: int(x.stars, `${where}.stars`)!,
     streakDays: int(x.streakDays, `${where}.streakDays`)!,
     lastDay: str(x.lastDay, 10, `${where}.lastDay`, true) ?? '',
-    daily,
+    daily: dailyMap(x.daily, `${where}.daily`),
     topics,
     mistakes,
     sessions: int(x.sessions, `${where}.sessions`)!,
@@ -135,21 +176,38 @@ function child(x: unknown, where: string) {
   };
 }
 
+/** The reserved class-rollout fields. Empty today; kept if present. */
+function enrollment(x: unknown, where: string) {
+  if (x === undefined) return {};
+  if (!isObj(x)) return fail(where);
+  const out: Record<string, unknown> = {};
+  const school = str(x.school, 80, where, true);
+  const cls = str(x.class, 20, where, true);
+  const grade = int(x.grade, where, 12, true);
+  const year = int(x.year, where, 3000, true);
+  if (school !== undefined) out.school = school;
+  if (grade !== undefined) out.grade = grade;
+  if (cls !== undefined) out.class = cls;
+  if (year !== undefined) out.year = year;
+  return out;
+}
+
 /**
- * Validate a parsed backup and copy only the known fields (version 1 or 2 files).
- * The returned object has no parentPin: the caller keeps the PIN that is already on this device.
+ * Validate a parsed backup and copy only the known fields (version 1, 2 or 3 files).
+ * The returned object has no parentPin, deviceId or sync state: the caller keeps this device's own.
  */
 export function sanitizeBackup(raw: unknown): Record<string, unknown> {
   if (!isObj(raw)) return fail('not an object');
   keysOf(raw, 20, 'top level');
   const version = raw.version ?? 1;
-  if (version !== 1 && version !== 2) fail('unknown version');
+  if (version !== 1 && version !== 2 && version !== 3) fail('unknown version');
+  const v3 = version === 3;
   if (!Array.isArray(raw.profiles) || raw.profiles.length > 20) fail('profiles');
   const profiles = (raw.profiles as unknown[]).map((p, i) => {
     const w = `profiles[${i}]`;
     if (!isObj(p)) return fail(w);
     const id = str(p.id, 40, w)!;
-    if (!PROFILE_ID.test(id)) fail(`${w}.id`);
+    if (!(v3 ? isUuid(id) : PROFILE_ID.test(id))) fail(`${w}.id`);
     const name = str(p.name, 32, w)!.trim();
     if (!name) fail(`${w}.name`);
     return {
@@ -159,6 +217,7 @@ export function sanitizeBackup(raw: unknown): Record<string, unknown> {
       createdAt: num(p.createdAt, w),
       theme: str(p.theme, 32, w, true),
       grade: int(p.grade, `${w}.grade`, 12, true),
+      ...(v3 ? { updatedAt: num(p.updatedAt, w), enrollment: enrollment(p.enrollment, `${w}.enrollment`) } : {}),
     };
   });
   const ids = new Set(profiles.map((p) => p.id));
@@ -168,7 +227,7 @@ export function sanitizeBackup(raw: unknown): Record<string, unknown> {
     if (!isObj(raw.progress)) fail('progress');
     for (const k of keysOf(raw.progress as Record<string, unknown>, 20, 'progress')) {
       if (!ids.has(k)) fail('progress for an unknown profile');
-      progress[k] = child((raw.progress as Record<string, unknown>)[k], `progress.${k}`);
+      progress[k] = child((raw.progress as Record<string, unknown>)[k], `progress.${k}`, v3);
     }
   }
   return {
@@ -191,9 +250,9 @@ export function parseBackup(text: string): AppData {
   return migrate(sanitizeBackup(parsed));
 }
 
-/** The backup file's text. The parent PIN is never written to a file. */
+/** The backup file's text. The parent PIN (and this device's id and sync state) are never written to a file. */
 export function backupJson(d: AppData): string {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { parentPin, ...rest } = d;
+  const { parentPin, deviceId, sync, ...rest } = d;
   return JSON.stringify(rest, null, 2);
 }

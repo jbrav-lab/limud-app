@@ -55,7 +55,8 @@ Waiting on a paid GitHub account, so the project and data can be kept private.
 - **A paid GitHub plan makes the *code* private, but it doesn't store or sync any data.** GitHub Pages only serves files; it has no database or logins. Even from a private repo, a Pages site is reachable by anyone with the address on regular paid plans. Private access control needs GitHub Enterprise Cloud.
 - So syncing needs a small **data backend with sign-in**, for example Supabase, Firebase, or a tiny API. A family account and per-child records would be private to the parent, and the phone would sync when online and keep working offline.
 - **Already in place to build on:**
-  - The whole state is one versioned JSON document (`AppData`, now `version: 2`, in `src/engine/store.ts`).
+  - The whole state is one versioned JSON document (`AppData`, `version: 2` on `main`, `version: 3` on the step-1 branch, in `src/engine/store.ts`).
   - Backup export/import already moves it between devices by hand.
   - Test results are stored as records (`ExamRecord`) with dates and scores.
 - When this starts: follow [docs/sync-supabase-plan.md](sync-supabase-plan.md). It begins with data version 3: stable record ids, `updatedAt` timestamps and per-device counters for merging.
+- **Step 1 prototyped (2026-11-15), on branch `claude/data-v3-prototype-df2387` only, not merged or deployed:** data version 3 (`migrate()` in `src/engine/store.ts`, backup key `limud-app-backup-before-v3`), pure merge functions in `src/engine/merge.ts` with tests (idempotent, order-independent, associative), and version-3 backups. Not done yet: tombstones for deleted children and progress resets (they would come back after a merge), and restore still replaces instead of merging.

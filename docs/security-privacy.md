@@ -54,6 +54,11 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 | Child nickname | Device | Server, **encrypted** (Vault) | Show whose progress it is | That family's parents and linked devices | **7 years** after the family's last activity, or **48 hours** after a confirmed deletion request, whichever comes first |
 | Avatar (emoji), grade, color theme | Device | Server | Display; choosing the grade's content | Same | Same |
 | Practice progress, stars, streak, daily counts | Device | Server | Learning, adaptive difficulty, parent oversight | Same | Same |
+| Per-device counters (data v3: stars, sessions and answers per day, kept per `deviceId` under each child's `byDevice`; a streak carried over from v2 as `streakSeed`). Totals and the streak are computed from them, not stored | Device; in backup files | Server | Summing counts from several phones without counting twice | Same | Same |
+| Record ids and change times (data v3: UUID profile ids, an `id` on every test result and mistake, `updatedAt` on profiles and topic progress) | Device; in backup files | Server | Merging data from several devices | Same | Same |
+| Device id (`deviceId`, a random UUID made once per browser) | Device only (not in backup files) | Server, as the key of that device's counter rows | Telling one phone's counters from another's | Same | Same as the family's data. Random; says nothing about the phone or the child |
+| Class enrollment (`enrollment`: school, grade, class, year) | Device, **always empty** (reserved, no screen) | — | A possible future class rollout, only with school approval | — | — |
+| Sync state (`sync`: last pull time and a change outbox) | Device only, **unused** (empty until sync is built; not in backup files) | — | Offline-first sync later | — | — |
 | Mistakes (question, child's answer, correct answer) | Device (newest 200) | Server (newest 200) | Practice and parent review | Same | Rolling 200 |
 | Test results and answers | Device | Server | Parent review and release | Same | Same |
 | Parent PIN | Device, plain text (a child gate, §8) | Server: per parent, slow salted hash | Quick re-unlock of the parent area | Nobody can read it back | Until changed or the parent leaves |
