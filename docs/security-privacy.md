@@ -25,7 +25,8 @@ Every ✅ claim in this file maps to something that can be run or read.
 | No known high or critical vulnerabilities in dependencies | `npm audit --audit-level=high` in `.github/workflows/deploy.yml` | CI, every deploy |
 | Software bill of materials | `npm sbom` → `sbom` artifact on each run (kept 90 days) | CI, every deploy |
 | Pinned, least-privilege build pipeline | `.github/workflows/deploy.yml` (actions pinned to commit SHAs, `permissions: {}` by default, per-job grants, no stored git credentials) | Read the file |
-| Dependency and action updates | `.github/dependabot.yml` | Weekly |
+| Dependency and action updates | `.github/dependabot.yml`; Dependabot alerts and security updates on | Weekly, and on new advisories |
+| Repository protections | Branch protection on `main`, secret scanning with push protection, private vulnerability reporting (§14) | Enforced by GitHub |
 | Backup files carry no PIN; restore accepts only a known, size-limited shape | `src/engine/backup.ts`, tests in `src/engine/backup.test.ts` | CI, every deploy |
 | Data migrations keep all progress | `src/engine/store.test.ts` | CI, every deploy |
 | Every question generator produces valid, non-negative, self-checking answers | `src/curricula/curricula.test.ts` (400 runs per generator and level in CI; `GEN_RUNS=20000 npx vitest run -t "topic generators"` as a soak test) | CI (400 runs) |
@@ -241,7 +242,7 @@ All data is on the family's own devices; the owner holds none.
 
 ## 14. Secure development
 - **In place ✅:** every push to `main` runs audit → tests → build → `check-dist` → SBOM, and only then deploys. Actions are pinned. Dependabot is on.
-- **Repository settings to turn on** (a GitHub setting each, done by the owner): branch protection on `main` (required status checks, no force-push), secret scanning with push protection, private vulnerability reporting, and MFA on the GitHub account (if not already on).
+- **Repository settings ✅ (turned on 2026-11-15; check with `gh api repos/jbrav-lab/limud-app/branches/main/protection` and the repo's Security tab):** branch protection on `main` (no force-push, no deletion, linear history, applies to admins too); secret scanning with push protection; private vulnerability reporting (see `SECURITY.md`); Dependabot alerts and security updates. Required status checks are **not** set: the deploy itself runs every gate before publishing, and requiring checks would block direct pushes to `main`.
 - **Rules for code changes** (also in CLAUDE.md):
   - no third-party scripts, fonts or requests;
   - no raw HTML;
