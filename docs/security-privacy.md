@@ -51,16 +51,16 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 
 | Data | Today: where | Family View: where | Purpose | Who can see it | Kept for |
 |---|---|---|---|---|---|
-| Child nickname | Device | Server, **encrypted** (Vault) | Show whose progress it is | That family's parents and linked devices | Until a deletion is requested; erased within 48 hours of the confirmed request |
+| Child nickname | Device | Server, **encrypted** (Vault) | Show whose progress it is | That family's parents and linked devices | **7 years** after the family's last activity, or **48 hours** after a confirmed deletion request, whichever comes first |
 | Avatar (emoji), grade, color theme | Device | Server | Display; choosing the grade's content | Same | Same |
 | Practice progress, stars, streak, daily counts | Device | Server | Learning, adaptive difficulty, parent oversight | Same | Same |
 | Mistakes (question, child's answer, correct answer) | Device (newest 200) | Server (newest 200) | Practice and parent review | Same | Rolling 200 |
-| Test results and answers | Device | Server | Parent review and release | Same | Until a deletion is requested (then erased within 48 hours) |
+| Test results and answers | Device | Server | Parent review and release | Same | Same |
 | Parent PIN | Device, plain text (a child gate, §8) | Server: per parent, slow salted hash | Quick re-unlock of the parent area | Nobody can read it back | Until changed or the parent leaves |
 | Parent email | — | Supabase sign-in only | Sign-in | Supabase sign-in system; **not linkable to a family** (§9.3) | Until the parent's account is deleted |
 | Family name | — | Server, encrypted | Display to the family | That family | Until the family is deleted |
 | Consent record (notice version, date) | — | Server, by family-only member id | Proof of consent | Owner (without names) | While the family exists, then anonymized |
-| Security audit log | — | Server, member ids and rounded times only | Accountability, abuse detection | Owner | Indefinitely; holds no names, emails or family ids |
+| Security audit log | — | Server, member ids and rounded times only | Accountability, abuse detection | Owner | **7 years** from the entry; holds no names, emails or family ids |
 | Backup file | Wherever the parent saves it | — | Moving data by hand | The parent | The parent's choice |
 
 **Never collected:** real or full names (a nickname is enough), gender, date of birth, photos, location, contacts, school (until a class rollout with school approval), IP addresses in app tables, analytics, or advertising identifiers.
@@ -75,7 +75,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 | No sensitive data by accident | No gender or gendered roles anywhere (UI text: "הורה", "מבוגר"). No profile photos. |
 | Unlinkability | A leaked database can't link an email to a family or child (§9.3). |
 | Transparency | 🟡 A Hebrew privacy notice for parents and a short, child-level explanation, shown before the first sync. |
-| Storage limitation | §3 retention column. History is kept until a deletion is requested, then erased within 48 hours (decided 2026-11-15). Inactive families are **not** erased automatically. |
+| Storage limitation | §3 retention column: **7 years**, or **48 hours** after a confirmed deletion request, whichever comes first (decided 2026-11-15). A nightly job erases a whole family, with all its children and their history, 7 years after the family's last activity. |
 | Data-subject rights | §10. |
 | Child-appropriate design | No ads, no purchases, no social features, no messaging. Streaks: no changes for now (decided 2026-11-15). The existing 🔥 day counter and two streak badges stay as they are; revisit before any wider rollout, since some child-design codes treat loss-pressure mechanics as a nudge. |
 
@@ -197,10 +197,10 @@ All data is on the family's own devices; the owner holds none.
 |---|---|
 | **A. A parent who can sign in** | Self-service in the app: delete a child (every parent must approve), delete the family, delete their own account, export everything. Leaving as the last parent deletes the family, with a warning and the 48-hour restore window. |
 | **B. A parent asks by email or letter instead** | The owner starts a **verified request** (an admin function that takes only the email address). The system sends a one-time link to that address. When the person clicks it, the server resolves the family through the HMAC and carries out the request **under the same rules as in-app**: export, or delete with the other parents' approval. The owner sees only "verified / completed / waiting for other parents", never which family. |
-| **C. The requester lost access to their email** | They give the **family reference code** (a random code shown in the parent area; stored only as an HMAC), and another parent in the family confirms in the app. If they are the only parent and have neither email nor code, the request can't be verified, and acting on it would risk deleting a stranger's data. They are told so. Because history is kept until a deletion is requested (§12), there is **no automatic erasure to fall back on**: the unverified request stays on file and the owner decides case by case. |
-| **D. A guardian who isn't a parent in the app** (for example, a parent who was never invited) | Their legal right is checked outside the app first (owner's decision). To locate the data, they need the family reference code, or one of the child's linked devices: the device can show a one-time "deletion request" code that goes to the family's parents for approval. Without either, the data can't be found; the request stays on file for the owner to decide. |
+| **C. The requester lost access to their email** | They give the **family reference code** (a random code shown in the parent area; stored only as an HMAC), and another parent in the family confirms in the app. If they are the only parent and have neither email nor code, the request can't be verified, and acting on it would risk deleting a stranger's data. They are told so. The unverified request stays on file for the owner to decide, and the **7-year limit** (§3) guarantees erasure within a bounded time anyway. |
+| **D. A guardian who isn't a parent in the app** (for example, a parent who was never invited) | Their legal right is checked outside the app first (owner's decision). To locate the data, they need the family reference code, or one of the child's linked devices: the device can show a one-time "deletion request" code that goes to the family's parents for approval. Without either, the data can't be found; the request stays on file for the owner to decide, and the 7-year limit still applies. |
 | **E. The child's own device** | Local data: delete in the parent area, or clear site data. Server data: deleting a child sends a deletion marker (tombstone) to every linked device, and revoked devices are wiped at their next sync. |
-| **F. Proof of compliance** | Each completed request leaves an **anonymized record**: date, request type, channel, outcome. No member id, family id, name or email. It's kept as accountability evidence. |
+| **F. Proof of compliance** | Each completed request leaves an **anonymized record**: date, request type, channel, outcome. No member id, family id, name or email. Kept 7 years as accountability evidence. |
 | **G. Timing and backups** | Erasure completes **within 48 hours** of the confirmed request (after every required approval). The free tier has no server backups, so erasure is complete. With paid backups, erased data drops out when the backup retention window ends; the notice must state that window. |
 
 ---
@@ -224,7 +224,11 @@ All data is on the family's own devices; the owner holds none.
    - The child's answers are saved on the device and uploaded at the next sync. The server scores them; a test taken offline shows "נשלח ✓" until then.
    - The score, the answer key and the explanations reach the child's device **only on release**.
    - **Practice** (not tests) is still checked on the device, because it needs instant feedback. A child could tamper with practice stars; this is accepted (§11).
-2. **Retention:** history is kept indefinitely, until a deletion is requested; then it is erased **within 48 hours** of the confirmed request. This 48-hour window is also the restore window after an in-app deletion. Inactive families are not erased automatically.
+2. **Retention: 7 years, or 48 hours after a confirmed deletion request, whichever comes first.**
+   - The clock is the **family's last activity**: while a family is active, nothing ages out. 7 years after the last activity, the whole family is erased, with all its children and their history. Audit-log entries (which hold no personal data) are kept 7 years from the entry.
+   - A confirmed deletion request (in the app, or verified from outside) is completed within 48 hours. This is also the restore window after an in-app deletion.
+   - Mistakes stay limited to the newest 200 per child.
+   - The anonymized proof-of-deletion records (§10 F) are kept 7 years.
 3. **Streaks:** no changes for now.
 4. **MFA:** not in phase 1.
 
