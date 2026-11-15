@@ -3,3 +3,5 @@ dist
 dev-dist
 *.log
 docs/sources/
+# backup files hold children's data and must never be committed
+limud-backup-*.json

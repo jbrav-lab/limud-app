@@ -22,6 +22,7 @@ npm install
 npm run dev        # dev server (also reachable from the phone on the same Wi-Fi)
 npm test           # runs every exercise generator 400× per level and checks the answers
 npm run build      # production build into dist/
+npm run check:dist # security and privacy checks on dist/ (also runs in CI)
 ```
 `http://localhost:5173/?gallery` (dev only) shows every diagram type, for checking visuals.
 

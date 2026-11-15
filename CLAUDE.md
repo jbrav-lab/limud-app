@@ -23,6 +23,14 @@ Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grades 4 an
 ## Content rules
 - **Word problems (story questions): every fraction appears in Hebrew words AND as a number**, e.g. "מאיה נתנה חצי (1/2) מן התפוחים שלה". Use `frBoth(n, d)` (or `frBoth(n, d, true)` for mixed numbers) from `src/engine/math.ts`. Whole numbers stay as digits. Word-problem prompts are marked with `wordProblem: true` on the question, and `topics.test.ts` checks the rule.
 
+## Security and privacy
+The record is `docs/security-privacy.md` (evidence index, data inventory, OWASP matrix). Keep it true when code changes:
+- No third-party scripts, fonts or requests, and no raw HTML (`dangerouslySetInnerHTML`, `innerHTML`, `eval`). `npm run check:dist` (also in CI) fails on outside addresses, inline scripts, source maps or a weakened CSP. The CSP lives in `vite.config.ts`; when sync is added, only the project's own Supabase URL goes into `connect-src`.
+- Every new stored field goes into the data inventory (§3). No gender data or gendered roles. No personal data in logs.
+- Backups: `src/engine/backup.ts`. Export never includes the PIN; restore goes through the sanitizer. A new stored field must be added to the sanitizer and its test, or it will be dropped on restore.
+- CI (`.github/workflows/deploy.yml`): actions pinned to commit SHAs with the tag in a comment; `permissions: {}` at the top, grants per job; `npm audit --audit-level=high` blocks deploys. Node 22 (vitest 5 needs it).
+- Rare generator bugs: `GEN_RUNS=20000 npx vitest run -t "topic generators"` before adding or changing a math generator.
+
 ## Design system link
 The app's look comes from the Claude Design System **"לומדים חשבון"**:
 https://claude.ai/artifact/Qvrx5Ub9qf1yNzunq1ma7G

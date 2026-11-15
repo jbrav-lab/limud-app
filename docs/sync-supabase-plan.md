@@ -1,5 +1,7 @@
 # Plan: server-side tracking of results with Supabase
 
+**Phase 1 scope and product rules:** [family-view-design.md](family-view-design.md) (roles, deleting a child, parent-made tests with review and release, encrypted names). Where the two documents differ, the design document wins.
+
 **Status: plan only. Nothing is deployed.** No Supabase project has been created, and no keys or URLs are in the code. Build it in this order, on a branch, against a *local* Supabase (`supabase start`). Turn on a hosted project only after you decide to.
 
 Goal: covers roadmap items 1 (move scores between devices and versions), 2 (parent tracking from the parent's own phone) and 6 (parent notified when a test is done). The app must keep working **offline and without an account**, exactly as today.

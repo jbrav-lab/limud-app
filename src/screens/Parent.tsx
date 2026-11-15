@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
+import { MAX_BACKUP_BYTES, backupJson, parseBackup } from '../engine/backup';
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
@@ -234,7 +235,7 @@ export function Parent({ onBack }: { onBack: () => void }) {
   if (!ok) return <PinGate onOk={() => setOk(true)} onBack={onBack} />;
 
   const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([backupJson(data)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `limud-backup-${today()}.json`;
@@ -368,8 +369,10 @@ export function Parent({ onBack }: { onBack: () => void }) {
                   const f = e.target.files?.[0];
                   if (!f) return;
                   try {
+                    if (f.size > MAX_BACKUP_BYTES) throw new Error('too large');
+                    const restored = parseBackup(await f.text());
                     if (!confirm('השחזור יחליף את כל הנתונים הנוכחיים. להמשיך?')) return;
-                    actions.importData(await f.text());
+                    actions.restoreBackup(restored);
                     setMsg('הגיבוי שוחזר ✓');
                   } catch {
                     setMsg('הקובץ לא תקין');

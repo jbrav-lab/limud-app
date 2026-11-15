@@ -1,11 +1,43 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+
+/**
+ * Content-Security-Policy for the built app (GitHub Pages can't send headers, so it goes in a <meta> tag).
+ * Build only: the dev server needs inline scripts for hot reload. scripts/check-dist.mjs checks the result.
+ * When the Supabase sync is added, its exact URL goes into connect-src, and nothing else.
+ */
+export const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+  'upgrade-insecure-requests',
+].join('; ');
+
+function securityMeta(): Plugin {
+  return {
+    name: 'security-meta',
+    apply: 'build',
+    transformIndexHtml: () => [
+      { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CSP }, injectTo: 'head-prepend' },
+      { tag: 'meta', attrs: { name: 'referrer', content: 'no-referrer' }, injectTo: 'head-prepend' },
+    ],
+  };
+}
 
 export default defineConfig({
   base: './',
   plugins: [
     react(),
+    securityMeta(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],

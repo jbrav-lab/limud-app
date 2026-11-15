@@ -213,7 +213,7 @@ function placeValueQ(level: Level): Question {
       solution: [`[[${fmt(n)} ≈ ${fmt(r)}]]`],
     };
   }
-  const n = randInt(1000, 990000), step = pick([1000, 10000, 100]), more = chance(0.5);
+  const n = randInt(1000, 990000), step = pick([1000, 10000, 100]), more = chance(0.5) || n < 2 * step;
   return {
     prompt: `איזה מספר גדול ב־[[${fmt(step)}]] מ־[[${fmt(n)}]]?`.replace('גדול', more ? 'גדול' : 'קטן'),
     answer: { kind: 'number', value: more ? n + step : n - step },

@@ -31,13 +31,17 @@ The current app is a **trial run**. Progress lives only on each child's phone (b
 ## Planned for the final version (not started)
 Waiting on a paid GitHub account, so the project and data can be kept private.
 
+**Phase 1, Family View: [docs/family-view-design.md](family-view-design.md)** (decided 2026-11-15). Two families, invite-only sign-in, sync with parent oversight, and parent-made tests (item 3) with in-app notifications (item 6). Schools, classes and anonymous comparison are parked until a school opts in.
+
+**Security and privacy file: [docs/security-privacy.md](security-privacy.md)** (OWASP Top 10:2025 matrix, threat model, data inventory, deletion procedures, evidence index). Before Family View goes live: move hosting to a static host that sends security headers.
+
 **Server-side tracking plan (Supabase): [docs/sync-supabase-plan.md](sync-supabase-plan.md).** Plan only, not deployed. It covers items 1, 2 and 6 below: parent sign-in, a family with linked devices, an offline-first sync with merge rules, Row Level Security, and the build order.
 
 1. **Migrate scores.** Move each child's progress (practice stats, test results, stars, mistakes) between devices and app versions without manual backup files.
 2. **Parent tracking from the parent's own device.** The parent UI shows each child's progress and test scores remotely, not only on the child's phone.
 
 ## Planned features (not started)
-3. **Parent-defined tests.** In the parent area, a parent builds a test for a child: topics, difficulty and number of questions. The child sees it waiting on the home screen. This reuses the test-prep engine (`src/engine/exam.ts`, `ExamConfig`).
+3. **Parent-defined tests.** Designed in [family-view-design.md](family-view-design.md#parent-made-tests): frozen questions, same test for same-grade children, personal "from mistakes" tests, an optional "upcoming school test" card, answer overrides, and results released after an adult reviews them. Reuses the test-prep engine (`src/engine/exam.ts`).
 4. **"I don't know this" (לא יודע/ת את זה) in tests.** The child marks a question as unknown instead of guessing. It scores 0 like a blank, but is listed for later learning: practice it again and show it to the parent.
 5. **"I don't understand the question" (לא מבין/ה את השאלה) in tests.** The child asks for help with the wording. They get a tip (rephrasing or a hint) without being given the answer, and the parent sees which questions were unclear.
 

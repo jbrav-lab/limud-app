@@ -1,0 +1,16 @@
+# Weekly update proposals (as pull requests) for npm packages and for the pinned GitHub Actions.
+# Security fixes are proposed as soon as an advisory is published. Nothing merges without review.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      build-tools:
+        patterns: ['vite', 'vite-plugin-pwa', '@vitejs/*', 'vitest', 'typescript', '@types/*']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

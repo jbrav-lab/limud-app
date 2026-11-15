@@ -24,7 +24,9 @@ import { fmt, fracWords, frBoth } from '../engine/math';
 import { rootAnswers } from './g5/hebrew/forms';
 import { toHebrewNumeral } from './g4/math/numbers';
 
-const RUNS = 400;
+// Runs per generator and level. A rare bad question needs many runs to show up: GEN_RUNS=20000 npx vitest run (a soak test).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RUNS = Number((globalThis as any).process?.env?.GEN_RUNS ?? 400);
 
 function assertWellFormed(q: Question, where: string) {
   expect(q.prompt, where).toBeTruthy();

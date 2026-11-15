@@ -223,10 +223,9 @@ export const actions = {
   setSound(on: boolean) {
     update((d) => ({ ...d, sound: on }));
   },
-  importData(json: string) {
-    const parsed = JSON.parse(json);
-    if (![1, 2].includes(parsed?.version) || !Array.isArray(parsed.profiles)) throw new Error('bad file');
-    update(() => migrate(parsed)); // backups from older versions are upgraded on restore
+  /** Replace all data with a validated backup (from parseBackup in ./backup). The PIN already on this device stays. */
+  restoreBackup(restored: AppData) {
+    update((d) => ({ ...restored, parentPin: d.parentPin }));
   },
 
   /**
