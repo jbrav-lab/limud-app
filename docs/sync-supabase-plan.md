@@ -2,7 +2,7 @@
 
 **Phase 1 scope and product rules:** [family-view-design.md](family-view-design.md) (roles, deleting a child, parent-made tests with review and release, encrypted names). Where the two documents differ, the design document wins.
 
-**Status: plan only. Nothing is deployed.** No Supabase project has been created, and no keys or URLs are in the code. Build it in this order, on a branch, against a *local* Supabase (`supabase start`). Turn on a hosted project only after you decide to.
+**Status: nothing is deployed.** No Supabase project has been created, and no keys or URLs are in the code. Step 1 (data v3) is prototyped on branch `claude/data-v3-prototype-df2387`; step 2 (database schema and security, §9) is built and tested on branch `claude/sync-step2`. Neither is merged. Build it in this order, on a branch, against a *local* Supabase (`supabase start`). Turn on a hosted project only after you decide to.
 
 Goal: covers roadmap items 1 (move scores between devices and versions), 2 (parent tracking from the parent's own phone) and 6 (parent notified when a test is done). The app must keep working **offline and without an account**, exactly as today.
 
@@ -20,6 +20,8 @@ Goal: covers roadmap items 1 (move scores between devices and versions), 2 (pare
 - The parent's own phone signs in the same way and opens the parent area remotely: it lists the family's children from the server.
 
 ## 3. Data model (Postgres)
+> **Built in step 2 with changes** (see §9 and `supabase/migrations/`): `family_members` has a family-only `member_id` and an HMAC of the sign-in id instead of `user_id`; names and labels are encrypted (`name_enc`, `label_enc`); devices have their own anonymous sign-in. The sketch below is the original plan.
+
 All rows carry `family_id`. Ids are UUIDs generated **on the client**, so a record created offline keeps its id when it reaches the server (no duplicates on retry).
 
 ```sql
@@ -155,5 +157,69 @@ The merge functions are pure TypeScript (`src/engine/merge.ts`) and get unit tes
 ## 8. Testing
 - Pure merge functions: vitest (two devices' data in, merged data out; idempotent; order-independent).
 - Migration v2 → v3: `store.test.ts`.
-- RLS: SQL tests against the local stack (`supabase test db`, pgTAP).
+- RLS: SQL tests against the local stack (`supabase test db`, pgTAP). **Built in step 2 as vitest tests in PGlite** (§9), because Docker isn't installed yet.
 - Sync end-to-end: two browser contexts in Playwright against local Supabase, one offline, then both online, checking that stars add up and tests appear once.
+
+## 9. Step 2: database schema and security (built 2026-11-16)
+On branch `claude/sync-step2`, not merged or deployed. No Supabase project exists yet.
+
+### What is in `supabase/migrations/`
+| File | Contents |
+|---|---|
+| `…0100_foundation.sql` | `pgcrypto` in `extensions`; an internal `private` schema; Vault key lookup that fails closed; HMAC-SHA256; name encryption; rounding to the hour; one-time codes |
+| `…0200_tables.sql` | All tables (below), with `check` rules on sizes, formats and rounded parent times |
+| `…0300_rls.sql` | Scope helpers, integrity triggers (never zero parents, one primary user, grow-only counters, topic-progress merge, server-set test owner and time, the 7-year activity clock), RLS on every table, the policies |
+| `…0400_api.sql` | The API: invites, families, children, device pairing, tests |
+| `…0500_deletion_retention.sql` | Deletion requests and approvals, parent removal, restore, erase, and `private.run_retention()` |
+| `…0600_grants.sql` | Takes back Supabase's default grants; grants only what the policies are for. `anon` gets nothing |
+
+**Tables:** `families`, `family_members`, `app_admins`, `devices`, `children`, `device_children`, `device_pairings`, `child_device_totals`, `daily_activity`, `topic_progress`, `exam_results`, `mistakes`, `tests` (owner scope `family`), `test_answer_keys`, `test_assignments`, `invites`, `deletion_requests`, `audit_log`, `deletion_proofs`, `consent_records`, `ref_schools`, `ref_grades`. Data inventory: [security-privacy.md §3](security-privacy.md#3-data-inventory-record-of-processing).
+
+**Roles:** admin (`app_admins`), primary user and parent (`family_members.role`), and the child device (`devices`, scoped to `device_children`).
+
+**Decisions made while building** (check them):
+- **A child's phone signs in anonymously** (Supabase anonymous sign-in, no email) and redeems a one-time code from a parent (`create_device_pairing` → `redeem_device_pairing`). This follows the design document; §2 above said a parent signs in on the phone. Its sign-in id is stored only as an HMAC, like a parent's.
+- **Writes that touch names go through functions** (`upsert_child`, `create_family`, `rename_device`…), because only the server holds the name key. Progress rows are written directly (upsert), filtered by RLS.
+- **The server merges as it stores:** stars, sessions and daily answers never go down; topic counters take the max, and the level comes from the newer `last_at` (§4).
+- **Parent removal** is a `deletion_requests` row of kind `remove_member` with `execute_after` 7 days later. The maintenance job carries it out and cancels other pending deletions in that family. A parent with a pending removal can't receive the primary role.
+- **Times:** parent actions are rounded down to the hour, enforced by table `check` rules. So the 48-hour restore window is 47 to 48 hours, and "expires after 7 days" counts from the rounded hour.
+- **Maintenance job:** `private.run_retention()` handles parent removals, expired requests, invites and codes, erasing after 48 hours and after 7 years, audit and proof clean-up, and trims mistakes to 200. It must run **every hour** (not nightly) so erasure completes within 48 hours. Not scheduled yet: see the checklist below.
+- **Parent-made tests:** the tables and the release flow are in place. The device reads questions only, never the key, and sees the score and note only after release. **Server scoring and answer overrides come in a later step.**
+- **One HMAC per parent, not per family:** a parent in two families has the same fingerprint in both, so a dump shows that two families share a parent (not who).
+
+**Owner setup before first use** (in the SQL editor, once):
+```sql
+select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_hmac_key');
+select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_name_key');
+select private.add_admin('<the owner''s auth.users id>');
+select cron.schedule('limud-maintenance', '7 * * * *', 'select private.run_retention()');  -- needs pg_cron
+```
+
+### How it is tested (no Docker: PGlite)
+Docker isn't installed, so the migrations run in **PGlite** (`@electric-sql/pglite` 0.5.16: Postgres 18.6 in WebAssembly, with `pgcrypto`) from vitest, as part of `npm test`. CI will run them on every deploy once the branch is merged. A run takes about 2 seconds.
+- `src/server-tests/shims/supabase-shim.sql`: **test-only stand-ins** (never run on a real project), loaded before the migrations, which run unchanged:
+  - the roles `anon`, `authenticated` and `service_role`, and Supabase's default grants on `public` (so the tests prove the migrations take them back);
+  - an `auth` schema: `auth.users` (id, email, `is_anonymous`, `last_sign_in_at`) and `auth.uid()`, `auth.jwt()`, `auth.role()` with Supabase's own bodies, reading `request.jwt.claims`;
+  - a `vault` schema: `vault.secrets` in **plain text**, the `vault.decrypted_secrets` view, and `vault.create_secret()`.
+- `src/server-tests/db.ts` boots PGlite, loads the shim and then the migrations (in file-name order, like the CLI), creates the keys, and runs each query as a caller (it sets the JWT claims and `set role authenticated`).
+- `access.test.ts` covers schema guarantees, `anon`, cross-family isolation for every table and role, and the §7 matrix. `deletion.test.ts` covers the deletion rules and retention, and `leak.test.ts` is the leak test. A refusal must come with a refusal error code, so a broken test query fails instead of passing. Each suite was checked by breaking the code on purpose (a wide-open policy; an `auth.uid()` written to the audit log), and the tests failed.
+
+### Re-check on real Supabase (local stack first, then the hosted project)
+1. **Run the same migrations with the CLI** (`supabase db reset`), and port the three test files to pgTAP (`supabase test db`), or point the vitest harness at the local stack's Postgres.
+2. **Vault:** the real `vault.decrypted_secrets` decrypts with a master key held outside the database. Check that `private.vault_key()` (security definer, owned by `postgres`) can read it, that `authenticated` can't, and that a `pg_dump` holds the secrets only encrypted.
+3. **Default privileges and ownership:** on Supabase, migrations run as `postgres`, and some default grants come from `supabase_admin`. Check with `has_table_privilege` and `has_function_privilege` that `anon` has nothing and `authenticated` has only what `…0600_grants.sql` grants.
+4. **`auth.jwt()` claims:** check that real JWTs carry `email` and `is_anonymous`, and that the email is the confirmed address (or read it from `auth.users` instead).
+5. **Anonymous sign-in** must be on for child devices, with its abuse protection (CAPTCHA or rate limits), while public email sign-ups stay off.
+6. **Exposed schemas:** only `public` in the API settings; `private`, `vault` and `auth` not exposed. Run the security advisor.
+7. **`pg_cron`:** enable it, schedule `private.run_retention()` hourly, and check that it runs as `postgres`.
+8. **Leak test on a real dump:** `supabase db dump --data-only` without Vault access, then the same checks as `leak.test.ts`.
+9. **Performance:** the RLS helpers are `stable` functions called once per query; check the query plans with real row counts.
+10. **Request logs** (API, auth and email logs) are outside the database and keep IP addresses. The leak test doesn't cover them (design document, "Not covered").
+
+### Left for later steps
+- Scoring tests on the server, and sending the answer key on release.
+- Answer overrides.
+- Per-parent PINs (security file §8).
+- Verified deletion requests from outside the app (security file §10 B–D).
+- "Delete my account", and leaving a family.
+- The sync client (steps 3–4).

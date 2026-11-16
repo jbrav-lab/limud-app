@@ -25,6 +25,7 @@ Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grades 4 an
 
 ## Security and privacy
 The record is `docs/security-privacy.md` (evidence index, data inventory, OWASP matrix). Keep it true when code changes:
+- Sync database (step 2): migrations in `supabase/migrations/` (never edit an applied one; add a new file). Tests in `src/server-tests/` run them in PGlite on a test-only shim (`shims/supabase-shim.sql`; keep it out of the migrations). A new table needs RLS, grants in a migration, and an entry in the `TABLES` list of `access.test.ts`. Every `security definer` function sets `search_path = ''` and validates its inputs. Parent action times are rounded to the hour. Details: `docs/sync-supabase-plan.md` §9.
 - No third-party scripts, fonts or requests, and no raw HTML (`dangerouslySetInnerHTML`, `innerHTML`, `eval`). `npm run check:dist` (also in CI) fails on outside addresses, inline scripts, source maps or a weakened CSP. The CSP lives in `vite.config.ts`; when sync is added, only the project's own Supabase URL goes into `connect-src`.
 - Every new stored field goes into the data inventory (§3). No gender data or gendered roles. No personal data in logs.
 - Backups: `src/engine/backup.ts`. Export never includes the PIN; restore goes through the sanitizer. A new stored field must be added to the sanitizer and its test, or it will be dropped on restore.
