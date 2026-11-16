@@ -1,9 +1,9 @@
 // Deletion rules, enforced in the database (docs/family-view-design.md "Deleting a child",
 // security-privacy.md §5 abuse case 1, §10, §12.2):
 //   every parent approves; requests expire after 7 days; removing a parent waits 7 days and blocks
-//   deletion meanwhile; soft delete restorable for 48 hours, then erased; never zero parents;
+//   deletion meanwhile; soft delete restorable until the daily run on D+2 (Israel date), which erases it; never zero parents;
 //   retention after 7 years without activity; anonymized proofs.
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { BOOT_TIMEOUT, TestDb, denied, uuid, type Caller } from './db';
 
 let db: TestDb;
@@ -52,6 +52,11 @@ const childState = async (id: string) =>
   (await db.owner<{ deleted: boolean }>(`select deleted_at is not null as deleted from public.children where id = $1`, [id]))[0];
 
 const proofs = () => db.owner(`select request_type, channel, outcome from public.deletion_proofs order by request_type, channel`);
+
+/** Set a soft delete to noon (Israel time), `days` Israel calendar days before today. */
+const deletedDaysAgo = (table: 'children' | 'families', id: string, days: number) =>
+  db.owner(`update public.${table} set deleted_at = ((private.israel_date(now()) - $2::int) + time '12:00') at time zone 'Asia/Jerusalem'
+            where id = $1`, [id, days]);
 
 const retention = () => db.owner<{ r: Record<string, number> }>(`select private.run_retention() as r`).then((x) => x[0].r);
 
@@ -137,28 +142,131 @@ describe('deleting a child', () => {
     expect(await childState(f.child)).toEqual({ deleted: false });
   });
 
-  it('after 48 hours it can no longer be restored, and the next run erases it with an anonymized proof', async () => {
+  it('on D+2 it can still be restored until the run, which erases it with an anonymized proof', async () => {
     const f = await family(0);
     await db.as(f.primary, `select public.request_child_deletion($1)`, [f.child]);
-    await db.ageBy('children', 'deleted_at', 'id = $1', '48 hours', [f.child]);
-    await denied(db.as(f.primary, `select public.restore_child($1)`, [f.child]));
+    await deletedDaysAgo('children', f.child, 2);
+    await db.as(f.primary, `select public.restore_child($1)`, [f.child]);
+    expect(await childState(f.child)).toEqual({ deleted: false });
+
+    await db.as(f.primary, `select public.request_child_deletion($1)`, [f.child]);
+    await deletedDaysAgo('children', f.child, 2);
     const before = (await proofs()).length;
-    await retention();
+    const r = await retention();
+    expect(r.erased_late).toBe(0);
     expect(await db.owner(`select id from public.children where id = $1`, [f.child])).toEqual([]);
     expect(await db.owner(`select id from public.exam_results where child_id = $1`, [f.child])).toEqual([]);
+    await denied(db.as(f.primary, `select public.restore_child($1)`, [f.child]));
     const after = await proofs();
     expect(after.length).toBe(before + 1);
     expect(after).toContainEqual({ request_type: 'child', channel: 'app', outcome: 'erased' });
   });
 
-  it('restore is allowed just before 48 hours', async () => {
+  it('a missed run: after the deadline it cannot be restored, and the next run erases it and reports it late', async () => {
     const f = await family(0);
     await db.as(f.primary, `select public.request_child_deletion($1)`, [f.child]);
-    await db.ageBy('children', 'deleted_at', 'id = $1', '47 hours', [f.child]);
-    await retention();
-    expect(await childState(f.child)).toEqual({ deleted: true });
-    await db.as(f.primary, `select public.restore_child($1)`, [f.child]);
-    expect(await childState(f.child)).toEqual({ deleted: false });
+    await deletedDaysAgo('children', f.child, 3);
+    await denied(db.as(f.primary, `select public.restore_child($1)`, [f.child]));
+    const r = await retention();
+    expect(r.erased_late).toBe(1);
+    expect(await db.owner(`select id from public.children where id = $1`, [f.child])).toEqual([]);
+  });
+});
+
+// The owner's rule: erased within 48 hours of the end of the day (Israel time) on which the
+// deletion was confirmed. Confirmed on day D: restorable until the daily run on D+2, which erases
+// it; deadline 00:00 on D+3. The job runs daily at 20:30 UTC (22:30 or 23:30 in Israel).
+describe('the day rule for erasing (Israel time)', () => {
+  /** An Israel wall-clock time as SQL, e.g. il('2026-12-01 23:59'). */
+  const il = (local: string) => `('${local}'::timestamp at time zone 'Asia/Jerusalem')`;
+
+  /** A soft-deleted child confirmed at an Israel time (stored rounded to the hour). */
+  async function deletedChild(fam: Fam, local: string): Promise<string> {
+    const id = uuid();
+    await db.as(fam.primary, `select public.upsert_child($1, $2, 'ילד', '🐶', 5, null, now())`, [id, fam.id]);
+    await db.owner(`update public.children set deleted_at = private.round_hour(${il(local)}) where id = $1`, [id]);
+    return id;
+  }
+
+  const exists = async (id: string) => (await db.owner(`select 1 from public.children where id = $1`, [id])).length === 1;
+  const runAt = (at: string) =>
+    db.owner<{ r: Record<string, number> }>(`select private.run_retention(${at}) as r`).then((x) => x[0].r);
+  const restorable = async (id: string, at: string) =>
+    (await db.owner<{ ok: boolean }>(`select private.restorable(deleted_at, ${at}) as ok from public.children where id = $1`, [id]))[0].ok;
+  const hours = [...Array(24).keys()].map((h) => `${String(h).padStart(2, '0')}:00`).concat('23:59');
+
+  // These runs use dates in the future: first clear soft deletes that earlier tests left, so the
+  // counts below are about this test's rows only.
+  beforeEach(async () => {
+    await db.owner(`delete from public.children where deleted_at is not null`);
+    await db.owner(`delete from public.families where deleted_at is not null`);
+  });
+
+  it('confirmed at 00:01 or 23:59: restorable all of D+1 (nothing erased), erased by the run on D+2', async () => {
+    const f = await family(0);
+    const early = await deletedChild(f, '2026-12-01 00:01');
+    const late = await deletedChild(f, '2026-12-01 23:59');
+    for (const h of hours) {
+      const at = il(`2026-12-02 ${h}`);
+      expect((await runAt(at)).children_erased).toBe(0);
+      expect(await exists(early)).toBe(true);
+      expect(await exists(late)).toBe(true);
+      expect(await restorable(early, at)).toBe(true);
+      expect(await restorable(late, at)).toBe(true);
+    }
+    // D+2, before the run: still restorable.
+    expect(await restorable(late, il('2026-12-03 22:00'))).toBe(true);
+    const r = await runAt(`'2026-12-03 20:30+00'`); // the scheduled time: 22:30 in Israel (winter)
+    expect(r.erased_late).toBe(0);
+    expect(await exists(early)).toBe(false);
+    expect(await exists(late)).toBe(false);
+  });
+
+  it('a run at any hour of D+2 erases it, before the deadline', async () => {
+    const f = await family(0);
+    for (const h of hours) {
+      const id = await deletedChild(f, '2026-12-10 23:59');
+      const at = il(`2026-12-12 ${h}`);
+      const r = await runAt(at);
+      expect(r.erased_late).toBe(0);
+      expect(await exists(id)).toBe(false);
+      const [{ before }] = await db.owner<{ before: boolean }>(
+        `select ${at} < private.erasure_deadline(private.round_hour(${il('2026-12-10 23:59')})) as before`);
+      expect(before).toBe(true);
+    }
+    // The deadline itself: 00:00 on D+3, Israel time.
+    const [{ deadline }] = await db.owner<{ deadline: boolean }>(
+      `select private.erasure_deadline(${il('2026-12-10 23:59')}) = ${il('2026-12-13 00:00')} as deadline`);
+    expect(deadline).toBe(true);
+  });
+
+  it('a deletion confirmed just before a daylight-saving change', async () => {
+    const f = await family(0);
+    // Israel summer time starts Friday 2027-03-26 at 02:00, and ends Sunday 2026-10-25 at 02:00.
+    const [{ spring, autumn }] = await db.owner<{ spring: boolean; autumn: boolean }>(`select
+      extract(hour from ('2027-03-27 12:00+00'::timestamptz at time zone 'Asia/Jerusalem')) = 15
+        and extract(hour from ('2027-03-25 12:00+00'::timestamptz at time zone 'Asia/Jerusalem')) = 14 as spring,
+      extract(hour from ('2026-10-26 12:00+00'::timestamptz at time zone 'Asia/Jerusalem')) = 14
+        and extract(hour from ('2026-10-24 12:00+00'::timestamptz at time zone 'Asia/Jerusalem')) = 15 as autumn`);
+    expect({ spring, autumn }).toEqual({ spring: true, autumn: true });
+
+    for (const [d, d1, d2] of [['2027-03-25', '2027-03-26', '2027-03-27'], ['2026-10-24', '2026-10-25', '2026-10-26']]) {
+      const id = await deletedChild(f, `${d} 23:59`);
+      expect((await runAt(`'${d1} 20:30+00'`)).children_erased).toBe(0);
+      expect(await exists(id)).toBe(true);
+      const r = await runAt(`'${d2} 20:30+00'`);
+      expect(r.erased_late).toBe(0);
+      expect(await exists(id)).toBe(false);
+    }
+  });
+
+  it('the 20:30 UTC schedule (and anything from 20:00 to 20:59) is 22:00–23:59 in Israel every day', async () => {
+    const bad = await db.owner(`
+      select d::date, m from generate_series('2026-01-01'::date, '2030-12-31'::date, interval '1 day') d,
+        unnest(array[0, 30, 59]) m
+      where private.israel_date((d::date + time '20:00' + make_interval(mins => m)) at time zone 'UTC') <> d::date
+         or extract(hour from ((d::date + time '20:00' + make_interval(mins => m)) at time zone 'UTC') at time zone 'Asia/Jerusalem') not in (22, 23)`);
+    expect(bad).toEqual([]);
   });
 });
 
@@ -229,7 +337,7 @@ describe('a family always has at least one parent', () => {
 });
 
 describe('deleting the family', () => {
-  it('needs every parent, is soft for 48 hours, then erases everything; consent is anonymized', async () => {
+  it('needs every parent, is soft until the run on D+2, then erases everything; consent is anonymized', async () => {
     const f = await family(1);
     const [{ req }] = await db.as<{ req: string }>(f.primary, `select public.request_family_deletion($1) as req`, [f.id]);
     expect((await db.as(f.primary, `select family_id from public.my_families()`)).length).toBe(1);
@@ -238,16 +346,17 @@ describe('deleting the family', () => {
     expect(await db.as(f.primary, `select family_id from public.my_families()`)).toEqual([]);
     expect(await db.as(f.primary, `select id from public.children`)).toEqual([]);
     expect(await db.as(f.device, `select id from public.device_children_list()`)).toEqual([]);
-    // Any parent can restore it within 48 hours.
+    // Any parent can restore it until it is erased.
     await db.as(f.parents[0], `select public.restore_family($1)`, [f.id]);
     expect((await db.as(f.primary, `select family_id from public.my_families()`)).length).toBe(1);
 
     const [{ req: again }] = await db.as<{ req: string }>(f.parents[0], `select public.request_family_deletion($1) as req`, [f.id]);
     await db.as(f.primary, `select public.approve_deletion($1)`, [again]);
-    await db.ageBy('families', 'deleted_at', 'id = $1', '48 hours', [f.id]);
-    await denied(db.as(f.primary, `select public.restore_family($1)`, [f.id]));
+    await deletedDaysAgo('families', f.id, 2);
     const r = await retention();
     expect(r.families_erased).toBe(1);
+    expect(r.erased_late).toBe(0);
+    await denied(db.as(f.primary, `select public.restore_family($1)`, [f.id]));
     expect(await rowsOfFamily(f.id)).toBe(0);
     expect(await proofs()).toContainEqual({ request_type: 'family', channel: 'app', outcome: 'erased' });
     // The consent record stays only as "a notice version was agreed on a date".

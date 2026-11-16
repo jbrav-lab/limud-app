@@ -88,7 +88,7 @@ export class TestDb {
     return { id: u.id, anonymous: true, label };
   }
 
-  /** Move a row's time back (to test the 48-hour, 7-day and 7-year rules). */
+  /** Move a row's time back (to test the 7-day and 7-year rules). */
   async ageBy(table: string, column: string, where: string, interval: string, params: unknown[] = []) {
     await this.owner(`update public.${table} set ${column} = ${column} - interval '${interval}' where ${where}`, params);
   }

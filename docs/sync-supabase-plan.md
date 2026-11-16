@@ -182,8 +182,10 @@ On branch `claude/sync-step2`, not merged or deployed. No Supabase project exist
 - **Writes that touch names go through functions** (`upsert_child`, `create_family`, `rename_device`…), because only the server holds the name key. Progress rows are written directly (upsert), filtered by RLS.
 - **The server merges as it stores:** stars, sessions and daily answers never go down; topic counters take the max, and the level comes from the newer `last_at` (§4).
 - **Parent removal** is a `deletion_requests` row of kind `remove_member` with `execute_after` 7 days later. The maintenance job carries it out and cancels other pending deletions in that family. A parent with a pending removal can't receive the primary role.
-- **Times:** parent actions are rounded down to the hour, enforced by table `check` rules. So the 48-hour restore window is 47 to 48 hours, and "expires after 7 days" counts from the rounded hour.
-- **Maintenance job:** `private.run_retention()` handles parent removals, expired requests, invites and codes, erasing after 48 hours and after 7 years, audit and proof clean-up, and trims mistakes to 200. It must run **every hour** (not nightly) so erasure completes within 48 hours. Not scheduled yet: see the checklist below.
+- **Times:** parent actions are rounded down to the hour, enforced by table `check` rules. "Expires after 7 days" counts from the rounded hour. Israel's offset is a whole number of hours, so rounding never moves a deletion to another Israel date.
+- **Maintenance job:** `private.run_retention()` handles parent removals, expired requests, invites and codes, erasing soft deletes and families after 7 years, audit and proof clean-up, and trims mistakes to 200. It runs **once a day** (owner's decision 2026-11-16: hourly costs too much for an app this size).
+- **The day rule for erasing:** a deletion must be erased within 48 hours of the end of the day it was confirmed, Israel time. Confirmed on day D (Israel date), it stays restorable until the run on D+2, which erases it (`private.erase_due`: Israel date of the soft delete ≤ today − 2); the deadline is 00:00 on D+3 (`private.erasure_deadline`). The rule compares dates, not elapsed hours, so any run on D+2 meets the deadline; a restore after the deadline is refused even if a run was missed, and the next run reports it as `erased_late`. Restore window: at least about 46½ hours (confirmed at 23:59, run at 22:30 in winter), up to about 72 hours.
+- **Schedule:** `pg_cron` runs in UTC. Run it at **20:30 UTC**, which is 22:30 in Israel in winter and 23:30 in summer, so the run on D+2 always comes before 00:00 on D+3 (any minute from 20:00 to 20:59 UTC works; a test checks every day from 2026 to 2030). Not 21:00 UTC or later: in summer that is already midnight. Not scheduled yet: see the checklist below.
 - **Parent-made tests:** the tables and the release flow are in place. The device reads questions only, never the key, and sees the score and note only after release. **Server scoring and answer overrides come in a later step.**
 - **One HMAC per parent, not per family:** a parent in two families has the same fingerprint in both, so a dump shows that two families share a parent (not who).
 
@@ -192,7 +194,7 @@ On branch `claude/sync-step2`, not merged or deployed. No Supabase project exist
 select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_hmac_key');
 select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_name_key');
 select private.add_admin('<the owner''s auth.users id>');
-select cron.schedule('limud-maintenance', '7 * * * *', 'select private.run_retention()');  -- needs pg_cron
+select cron.schedule('limud-maintenance', '30 20 * * *', 'select private.run_retention()');  -- daily 20:30 UTC; needs pg_cron
 ```
 
 ### How it is tested (no Docker: PGlite)
@@ -211,7 +213,7 @@ Docker isn't installed, so the migrations run in **PGlite** (`@electric-sql/pgli
 4. **`auth.jwt()` claims:** check that real JWTs carry `email` and `is_anonymous`, and that the email is the confirmed address (or read it from `auth.users` instead).
 5. **Anonymous sign-in** must be on for child devices, with its abuse protection (CAPTCHA or rate limits), while public email sign-ups stay off.
 6. **Exposed schemas:** only `public` in the API settings; `private`, `vault` and `auth` not exposed. Run the security advisor.
-7. **`pg_cron`:** enable it, schedule `private.run_retention()` hourly, and check that it runs as `postgres`.
+7. **`pg_cron`:** enable it, schedule `private.run_retention()` once a day at 20:30 UTC (`30 20 * * *`), check that it runs as `postgres` and that the database has the `Asia/Jerusalem` time zone, and alert when the job fails or reports `erased_late` above 0.
 8. **Leak test on a real dump:** `supabase db dump --data-only` without Vault access, then the same checks as `leak.test.ts`.
 9. **Performance:** the RLS helpers are `stable` functions called once per query; check the query plans with real row counts.
 10. **Request logs** (API, auth and email logs) are outside the database and keep IP addresses. The leak test doesn't cover them (design document, "Not covered").

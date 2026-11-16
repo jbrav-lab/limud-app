@@ -41,7 +41,7 @@ Every ✅ claim in this file maps to something that can be run or read.
 | Every `security definer` function sets `search_path` (and validates its inputs) | All migrations; `access.test.ts` ("every security definer function sets search_path") | `npm test` |
 | Family A can never read or change family B's rows (every table, every role) | `access.test.ts` ("family A can never read family B", with a before/after snapshot of B) | `npm test` |
 | The access-control matrix (§7), each cell | `access.test.ts` ("access-control matrix (§7)"), and `deletion.test.ts` for the delete rows | `npm test` |
-| Deletion rules: every parent approves; 7-day expiry; 7-day parent removal that blocks deletion; soft delete restorable 48 hours; never zero parents; one primary user | `20261116000500_deletion_retention.sql`; [`src/server-tests/deletion.test.ts`](../src/server-tests/deletion.test.ts) | `npm test` |
+| Deletion rules: every parent approves; 7-day expiry; 7-day parent removal that blocks deletion; soft delete restorable until the daily run on D+2 (Israel date), which erases it, before the 00:00 D+3 deadline; never zero parents; one primary user | `20261116000500_deletion_retention.sql`; [`src/server-tests/deletion.test.ts`](../src/server-tests/deletion.test.ts) ("the day rule for erasing": 00:01 and 23:59 requests, every hour of D+1 and D+2, both daylight-saving changes, the 20:30 UTC schedule for 2026–2030) | `npm test` |
 | Retention: erase 7 years after last activity; audit entries and proofs kept 7 years; consent anonymized; newest 200 mistakes | `private.run_retention()`; `deletion.test.ts` ("retention", "deleting the family") | `npm test` (the job itself is not scheduled yet) |
 | Leak test: a dump without the Vault keys holds no sign-in id, email, unkeyed hash, plain-text name or IP; accepted invites leave no trace; no query joins an email to a child | [`src/server-tests/leak.test.ts`](../src/server-tests/leak.test.ts) | `npm test` |
 | Parent action times rounded to the hour | Table `check` rules in `20261116000200_tables.sql`; `leak.test.ts`, `deletion.test.ts` | `npm test` |
@@ -65,7 +65,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 
 | Data | Today: where | Family View: where | Purpose | Who can see it | Kept for |
 |---|---|---|---|---|---|
-| Child nickname | Device | Server, **encrypted** (Vault; 🧪 `children.name_enc`) | Show whose progress it is | That family's parents and linked devices | **7 years** after the family's last activity, or **48 hours** after a confirmed deletion request, whichever comes first |
+| Child nickname | Device | Server, **encrypted** (Vault; 🧪 `children.name_enc`) | Show whose progress it is | That family's parents and linked devices | **7 years** after the family's last activity, or within **48 hours of the end of the day** (Israel time) a deletion request was confirmed, whichever comes first |
 | Avatar (emoji), grade, color theme | Device | Server | Display; choosing the grade's content | Same | Same |
 | Practice progress, stars, streak, daily counts | Device | Server | Learning, adaptive difficulty, parent oversight | Same | Same |
 | Per-device counters (data v3: stars, sessions and answers per day, kept per `deviceId` under each child's `byDevice`; a streak carried over from v2 as `streakSeed`). Totals and the streak are computed from them, not stored | Device; in backup files | Server | Summing counts from several phones without counting twice | Same | Same |
@@ -102,7 +102,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 | No sensitive data by accident | No gender or gendered roles anywhere (UI text: "הורה", "מבוגר"). No profile photos. |
 | Unlinkability | A leaked database can't link an email to a family or child (§9.3). |
 | Transparency | 🟡 A Hebrew privacy notice for parents and a short, child-level explanation, shown before the first sync. |
-| Storage limitation | §3 retention column: **7 years**, or **48 hours** after a confirmed deletion request, whichever comes first (decided 2026-11-15). A scheduled job erases a whole family, with all its children and their history, 7 years after the family's last activity (🧪 `private.run_retention()`, meant to run every hour so a confirmed deletion is erased within 48 hours; not scheduled yet). |
+| Storage limitation | §3 retention column: **7 years**, or within **48 hours of the end of the day** (Israel time) a deletion request was confirmed, whichever comes first (decided 2026-11-15; day rule 2026-11-16). A scheduled job erases a whole family, with all its children and their history, 7 years after the family's last activity (🧪 `private.run_retention()`, meant to run once a day at 20:30 UTC; not scheduled yet). |
 | Data-subject rights | §10. |
 | Child-appropriate design | No ads, no purchases, no social features, no messaging. Streaks: no changes for now (decided 2026-11-15). The existing 🔥 day counter and two streak badges stay as they are; revisit before any wider rollout, since some child-design codes treat loss-pressure mechanics as a nudge. |
 
@@ -126,7 +126,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 | **Elevation of privilege** | A parent acts as admin, or a child device acts as a parent | Separate roles; the admin has no data access; devices are scoped to their children; security-definer functions with fixed `search_path` | 🧪 `access.test.ts` |
 
 **Abuse cases the design must handle**
-1. **Estranged parent** wants to delete a child alone, or lock the other parent out. → Every parent must approve a deletion; removing a parent waits 7 days; soft delete, restorable for 48 hours; a family always has at least one parent.
+1. **Estranged parent** wants to delete a child alone, or lock the other parent out. → Every parent must approve a deletion; removing a parent waits 7 days; soft delete, restorable until the nightly cleanup two days later; a family always has at least one parent.
 2. **Tech-savvy child** inflates scores. → §12.
 3. **Lost phone.** → A parent revokes that device; it is wiped at the next sync, and its sign-in token stops working.
 4. **Leaked database dump.** → §9.3.
@@ -229,13 +229,13 @@ All data is on the family's own devices; the owner holds none.
 ### 10.2 Family View (🟡): request channels and procedures
 | Case | Procedure |
 |---|---|
-| **A. A parent who can sign in** | Self-service in the app: delete a child (every parent must approve), delete the family, delete their own account, export everything. Leaving as the last parent deletes the family, with a warning and the 48-hour restore window. |
+| **A. A parent who can sign in** | Self-service in the app: delete a child (every parent must approve), delete the family, delete their own account, export everything. Leaving as the last parent deletes the family, with a warning and the restore window (until the nightly cleanup two days later). |
 | **B. A parent asks by email or letter instead** | The owner starts a **verified request** (an admin function that takes only the email address). The system sends a one-time link to that address. When the person clicks it, the server resolves the family through the HMAC and carries out the request **under the same rules as in-app**: export, or delete with the other parents' approval. The owner sees only "verified / completed / waiting for other parents", never which family. |
 | **C. The requester lost access to their email** | They give the **family reference code** (a random code shown in the parent area; stored only as an HMAC), and another parent in the family confirms in the app. If they are the only parent and have neither email nor code, the request can't be verified, and acting on it would risk deleting a stranger's data. They are told so. The unverified request stays on file for the owner to decide, and the **7-year limit** (§3) guarantees erasure within a bounded time anyway. |
 | **D. A guardian who isn't a parent in the app** (for example, a parent who was never invited) | Their legal right is checked outside the app first (owner's decision). To locate the data, they need the family reference code, or one of the child's linked devices: the device can show a one-time "deletion request" code that goes to the family's parents for approval. Without either, the data can't be found; the request stays on file for the owner to decide, and the 7-year limit still applies. |
 | **E. The child's own device** | Local data: delete in the parent area, or clear site data. Server data: deleting a child sends a deletion marker (tombstone) to every linked device, and revoked devices are wiped at their next sync. |
 | **F. Proof of compliance** | Each completed request leaves an **anonymized record**: date, request type, channel, outcome. No member id, family id, name or email. Kept 7 years as accountability evidence. 🧪 `deletion_proofs`, tested in `deletion.test.ts`. (Cases B–D, the verified requests from outside the app, are not built yet.) |
-| **G. Timing and backups** | Erasure completes **within 48 hours** of the confirmed request (after every required approval). The free tier has no server backups, so erasure is complete. With paid backups, erased data drops out when the backup retention window ends; the notice must state that window. |
+| **G. Timing and backups** | Erasure completes **within 48 hours of the end of the day** (Israel time) on which the request was confirmed (after every required approval). Confirmed on day D: restorable until the daily maintenance run on D+2, which erases it; the deadline is 00:00 on D+3. The rule uses Israel calendar dates, not elapsed hours, so it holds whatever hour the run takes place on D+2 (🧪 `deletion.test.ts`). The run reports `erased_late` above 0 if a missed run broke a deadline; the job log should alert on it. The free tier has no server backups, so erasure is complete. With paid backups, erased data drops out when the backup retention window ends; the notice must state that window. |
 
 ---
 
@@ -258,9 +258,9 @@ All data is on the family's own devices; the owner holds none.
    - The child's answers are saved on the device and uploaded at the next sync. The server scores them; a test taken offline shows "נשלח ✓" until then.
    - The score, the answer key and the explanations reach the child's device **only on release**.
    - **Practice** (not tests) is still checked on the device, because it needs instant feedback. A child could tamper with practice stars; this is accepted (§11).
-2. **Retention: 7 years, or 48 hours after a confirmed deletion request, whichever comes first.**
+2. **Retention: 7 years, or within 48 hours of the end of the day a deletion request was confirmed, whichever comes first.**
    - The clock is the **family's last activity**: while a family is active, nothing ages out. 7 years after the last activity, the whole family is erased, with all its children and their history. Audit-log entries (which hold no personal data) are kept 7 years from the entry.
-   - A confirmed deletion request (in the app, or verified from outside) is completed within 48 hours. This is also the restore window after an in-app deletion.
+   - A confirmed deletion request (in the app, or verified from outside) is completed within 48 hours of the end of the day (Israel time) it was confirmed (owner's rule, 2026-11-16, so the maintenance job runs once a day, not hourly). After an in-app deletion, it can be restored until the nightly cleanup two days later: at least about 46½ hours (confirmed at 23:59, run at 22:30 in winter) and up to about 72 hours (confirmed just after midnight).
    - Mistakes stay limited to the newest 200 per child on the server (the device keeps the newest 60).
    - The anonymized proof-of-deletion records (§10 F) are kept 7 years.
 3. **Streaks:** no changes for now.
@@ -274,7 +274,7 @@ All data is on the family's own devices; the owner holds none.
 - Every table in exposed schemas has RLS **enabled**, plus a test that fails otherwise (🧪 in PGlite). The Supabase security advisor shows no errors (🟡 check on the real project).
 - Only the API schema is exposed; internal schemas are not (internal functions live in `private`; 🟡 check the API settings).
 - Security-definer functions set `search_path` and validate every input (🧪 tested).
-- The two Vault keys exist before first use, and the maintenance job (`private.run_retention()`) runs every hour through `pg_cron` (🟡).
+- The two Vault keys exist before first use, and the maintenance job (`private.run_retention()`) runs once a day at 20:30 UTC through `pg_cron` (🟡).
 - Short sign-in token lifetime with refresh-token rotation.
 - The CSP `connect-src` lists **only** the project's own Supabase URL. `check-dist` will be updated to allow exactly that host.
 - EU region (Frankfurt); the provider's data-processing agreement and sub-processor list on file.

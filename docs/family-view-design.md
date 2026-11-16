@@ -24,7 +24,7 @@ The technical sync plan (tables, merge rules, Row Level Security, build order) i
 - With **one parent**, that parent can delete a child.
 - With **more than one parent**, every parent must approve. One parent requests, the others get an in-app request, and it expires after 7 days if not approved.
 - **Removing a parent waits 7 days.** The parent being removed is notified, and no child can be deleted during that time. This closes the loophole of removing the other parent first and then deleting alone.
-- **Deletion is soft, then final.** A deleted child is hidden at once, any parent can restore it for **48 hours**, and then it is erased. A deletion request (in the app or verified from outside) completes within 48 hours of being confirmed.
+- **Deletion is soft, then final.** A deleted child is hidden at once, any parent can restore it **until the nightly cleanup two days later** (at least about 46½ hours), and then it is erased. A deletion request (in the app or verified from outside) completes within 48 hours of the end of the day (Israel time) the request was confirmed.
 - All of these rules are enforced **on the server** (database functions and Row Level Security), not only in the app.
 
 ## Sync and oversight
