@@ -14,7 +14,7 @@ Goal: covers roadmap items 1 (move scores between devices and versions), 2 (pare
 5. **Public repo safe.** The Supabase *anon* key is designed to be public, but keep both URL and key in GitHub Actions secrets → Vite env (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). Security comes from Row Level Security (RLS), not from hiding the key. The `service_role` key is never in the client or the repo.
 
 ## 2. Accounts and families
-- **Supabase Auth**, sign-in by email magic link (and optionally Google). No passwords to manage.
+- **Supabase Auth**, sign-in with **Google only** (decided 2026-11-16: no email provider, no magic links; [go-live-plan.md](go-live-plan.md)). No passwords to manage.
 - One **family** per household. The first parent who signs in creates it. A second parent joins by an invite code shown in the parent area.
 - A **device** (a child's phone) is linked to the family when a parent signs in on it once in the parent area. The session refresh token stays on the device, so sync keeps working; the PIN still guards the parent area. "Unlink this device" signs out.
 - The parent's own phone signs in the same way and opens the parent area remotely: it lists the family's children from the server.
@@ -146,6 +146,8 @@ The merge functions are pure TypeScript (`src/engine/merge.ts`) and get unit tes
 - **Site address:** unchanged (GitHub Pages). Sync is what finally lets a child move devices or addresses without losing progress.
 
 ## 7. Build order (each step shippable on its own)
+> **Superseded for going live (2026-11-16):** there is no local stack and no staging project. The owner's existing hosted project is used, with a fake test family, from `localhost`. The stages, gates and way back are in **[go-live-plan.md](go-live-plan.md)**; the list below is the original order, kept for reference.
+
 1. Data v3 migration + per-device counters + merge functions, with tests. No server yet. (Also makes backup/restore merge instead of overwrite.)
 2. Local Supabase (`supabase init`, `supabase start`), migrations in `supabase/migrations/`, RLS policies, and RLS tests (two families must not see each other's rows).
 3. Auth + family + device linking in the parent area, behind a build flag that is off when the env vars are missing.
@@ -172,6 +174,9 @@ On branch `claude/sync-step2`, not merged or deployed. No Supabase project exist
 | `…0400_api.sql` | The API: invites, families, children, device pairing, tests |
 | `…0500_deletion_retention.sql` | Deletion requests and approvals, parent removal, restore, erase, and `private.run_retention()` |
 | `…0600_grants.sql` | Takes back Supabase's default grants; grants only what the policies are for. `anon` gets nothing |
+| `…0700_go_live_decisions.sql` | Owner's go-live decisions: only the admin invites a primary user; the owner's first invite (`private.owner_invite_primary`); the "before user created" auth hook for Google-only invite-only sign-in; `private.daily_maintenance()` with its log `private.retention_runs`; `public.keep_alive()` (the only function `anon` may run) |
+
+**Migrations are frozen once pushed** to the live project: from `…0700` on, no file is edited; every change is a new file.
 
 **Tables:** `families`, `family_members`, `app_admins`, `devices`, `children`, `device_children`, `device_pairings`, `child_device_totals`, `daily_activity`, `topic_progress`, `exam_results`, `mistakes`, `tests` (owner scope `family`), `test_answer_keys`, `test_assignments`, `invites`, `deletion_requests`, `audit_log`, `deletion_proofs`, `consent_records`, `ref_schools`, `ref_grades`. Data inventory: [security-privacy.md §3](security-privacy.md#3-data-inventory-record-of-processing).
 
@@ -187,34 +192,38 @@ On branch `claude/sync-step2`, not merged or deployed. No Supabase project exist
 - **The day rule for erasing:** a deletion must be erased within 48 hours of the end of the day it was confirmed, Israel time. Confirmed on day D (Israel date), it stays restorable until the run on D+2, which erases it (`private.erase_due`: Israel date of the soft delete ≤ today − 2); the deadline is 00:00 on D+3 (`private.erasure_deadline`). The rule compares dates, not elapsed hours, so any run on D+2 meets the deadline; a restore after the deadline is refused even if a run was missed, and the next run reports it as `erased_late`. Restore window: at least about 46½ hours (confirmed at 23:59, run at 22:30 in winter), up to about 72 hours.
 - **Schedule:** `pg_cron` runs in UTC. Run it at **20:30 UTC**, which is 22:30 in Israel in winter and 23:30 in summer, so the run on D+2 always comes before 00:00 on D+3 (any minute from 20:00 to 20:59 UTC works; a test checks every day from 2026 to 2030). Not 21:00 UTC or later: in summer that is already midnight. Not scheduled yet: see the checklist below.
 - **Parent-made tests:** the tables and the release flow are in place. The device reads questions only, never the key, and sees the score and note only after release. **Server scoring and answer overrides come in a later step.**
-- **One HMAC per parent, not per family:** a parent in two families has the same fingerprint in both, so a dump shows that two families share a parent (not who).
+- **One HMAC per parent, not per family:** a parent in two families has the same fingerprint in both, so a dump shows that two families share a parent (not who). Accepted by the owner (2026-11-16; security file §11).
+- **Go-live decisions (2026-11-16, `…0700`):** only the admin invites a primary user; Google-only sign-in, made invite-only by an auth hook (Supabase needs sign-ups on for Google's first sign-in and for anonymous devices); the job runs as `private.daily_maintenance()`, which logs each run for the keep-alive check. See [go-live-plan.md](go-live-plan.md) Stage 0.
 
-**Owner setup before first use** (in the SQL editor, once):
+**Owner setup before first use** (in the SQL editor, once; step by step in [go-live-runbook-stage1.md](go-live-runbook-stage1.md)):
 ```sql
 select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_hmac_key');
 select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'limud_name_key');
+select cron.schedule('limud-maintenance', '30 20 * * *', 'select private.daily_maintenance()');  -- daily 20:30 UTC; needs pg_cron
+-- Stage 3, once Google sign-in exists: the owner's own invite, then (after the first sign-in) the admin row.
+select private.owner_invite_primary('<the owner''s Google address>');
 select private.add_admin('<the owner''s auth.users id>');
-select cron.schedule('limud-maintenance', '30 20 * * *', 'select private.run_retention()');  -- daily 20:30 UTC; needs pg_cron
 ```
 
 ### How it is tested (no Docker: PGlite)
 Docker isn't installed, so the migrations run in **PGlite** (`@electric-sql/pglite` 0.5.16: Postgres 18.6 in WebAssembly, with `pgcrypto`) from vitest, as part of `npm test`. CI will run them on every deploy once the branch is merged. A run takes about 2 seconds.
 - `src/server-tests/shims/supabase-shim.sql`: **test-only stand-ins** (never run on a real project), loaded before the migrations, which run unchanged:
-  - the roles `anon`, `authenticated` and `service_role`, and Supabase's default grants on `public` (so the tests prove the migrations take them back);
+  - the roles `anon`, `authenticated`, `service_role` and `supabase_auth_admin`, and Supabase's default grants on `public` (so the tests prove the migrations take them back);
   - an `auth` schema: `auth.users` (id, email, `is_anonymous`, `last_sign_in_at`) and `auth.uid()`, `auth.jwt()`, `auth.role()` with Supabase's own bodies, reading `request.jwt.claims`;
   - a `vault` schema: `vault.secrets` in **plain text**, the `vault.decrypted_secrets` view, and `vault.create_secret()`.
 - `src/server-tests/db.ts` boots PGlite, loads the shim and then the migrations (in file-name order, like the CLI), creates the keys, and runs each query as a caller (it sets the JWT claims and `set role authenticated`).
 - `access.test.ts` covers schema guarantees, `anon`, cross-family isolation for every table and role, and the §7 matrix. `deletion.test.ts` covers the deletion rules and retention, and `leak.test.ts` is the leak test. A refusal must come with a refusal error code, so a broken test query fails instead of passing. Each suite was checked by breaking the code on purpose (a wide-open policy; an `auth.uid()` written to the audit log), and the tests failed.
 
-### Re-check on real Supabase (local stack first, then the hosted project)
-1. **Run the same migrations with the CLI** (`supabase db reset`), and port the three test files to pgTAP (`supabase test db`), or point the vitest harness at the local stack's Postgres.
+### Re-check on real Supabase (on the live project; see [go-live-plan.md](go-live-plan.md))
+There is no local stack (no Docker): the migrations go straight to the owner's hosted project with `supabase db push`, and **`scripts/live-check.mjs`** runs items 2–7 against it (with test families, rolled back). Steps: [go-live-runbook-stage1.md](go-live-runbook-stage1.md).
+1. **Apply the same migrations with the CLI** (`supabase db push`); the live check confirms every file is applied and nothing else. (`supabase db reset` and `supabase test db` need Docker and are not used.)
 2. **Vault:** the real `vault.decrypted_secrets` decrypts with a master key held outside the database. Check that `private.vault_key()` (security definer, owned by `postgres`) can read it, that `authenticated` can't, and that a `pg_dump` holds the secrets only encrypted.
 3. **Default privileges and ownership:** on Supabase, migrations run as `postgres`, and some default grants come from `supabase_admin`. Check with `has_table_privilege` and `has_function_privilege` that `anon` has nothing and `authenticated` has only what `…0600_grants.sql` grants.
 4. **`auth.jwt()` claims:** check that real JWTs carry `email` and `is_anonymous`, and that the email is the confirmed address (or read it from `auth.users` instead).
-5. **Anonymous sign-in** must be on for child devices, with its abuse protection (CAPTCHA or rate limits), while public email sign-ups stay off.
+5. **Anonymous sign-in** must be on for child devices, with rate limits (no CAPTCHA: owner decision 2026-11-16). Sign-ups stay allowed (Google and anonymous need it); the "before user created" hook must be switched on, and an uninvited Google account must be refused (try it with a throwaway Google account).
 6. **Exposed schemas:** only `public` in the API settings; `private`, `vault` and `auth` not exposed. Run the security advisor.
-7. **`pg_cron`:** enable it, schedule `private.run_retention()` once a day at 20:30 UTC (`30 20 * * *`), check that it runs as `postgres` and that the database has the `Asia/Jerusalem` time zone, and alert when the job fails or reports `erased_late` above 0.
-8. **Leak test on a real dump:** `supabase db dump --data-only` without Vault access, then the same checks as `leak.test.ts`.
+7. **`pg_cron`:** enable it, schedule `private.daily_maintenance()` once a day at 20:30 UTC (`30 20 * * *`), check that it runs as `postgres` and that the database has the `Asia/Jerusalem` time zone, and alert when the job fails or reports `erased_late` above 0.
+8. **Leak test on a real dump:** `pg_dump --data-only` (the CLI's `db dump` needs Docker), then the same checks as `leak.test.ts`. The live check's leak scan covers the test families now; a dump with real data comes in Stage 7.
 9. **Performance:** the RLS helpers are `stable` functions called once per query; check the query plans with real row counts.
 10. **Request logs** (API, auth and email logs) are outside the database and keep IP addresses. The leak test doesn't cover them (design document, "Not covered").
 

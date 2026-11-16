@@ -62,7 +62,7 @@ The technical sync plan (tables, merge rules, Row Level Security, build order) i
 - **Before a wider rollout,** consider moving name encryption onto the devices (a family key that the server never sees). Then even the admin couldn't read names.
 - Parents' **email addresses** stay in Supabase's sign-in system, unencrypted, because sign-in needs them.
 - **Sign-in page:**
-  - email link or Google only;
+  - Google only (decided 2026-11-16: no email provider, no magic links);
   - no list of families or children anywhere before sign-in;
   - error messages don't reveal whether an email has an account.
 - **Device screens:** the "who's learning today?" picker shows only the children of the family that phone belongs to.
@@ -72,7 +72,7 @@ The technical sync plan (tables, merge rules, Row Level Security, build order) i
 Each parent sets **their own** PIN for their own account. There is no shared, family or master PIN, and the admin can neither set, read nor reset anyone's PIN. The PIN only re-unlocks the parent area on a device where that parent is already signed in; real access is always the parent's own sign-in, and a forgotten PIN means signing in again. Details: [security-privacy.md §8](security-privacy.md#8-authentication-and-the-parent-pin).
 
 ## Deletion and other requests when emails can't be linked to children
-The live system can resolve a family only for a requester who proves they own the email (a one-time link), and never shows the mapping to anyone. Procedures for every case, including a lost email address and a guardian who isn't in the app: [security-privacy.md §10](security-privacy.md#10-data-subject-rights-including-deletion-when-emails-cant-be-linked-to-children).
+The live system can resolve a family only for a requester who proves they own the email (by signing in with Google with that address), and never shows the mapping to anyone. Procedures for every case, including a lost email address and a guardian who isn't in the app: [security-privacy.md §10](security-privacy.md#10-data-subject-rights-including-deletion-when-emails-cant-be-linked-to-children).
 
 ## Requirement: a database leak must not link an email to a child
 Decided 2026-11-15. A dump of the database must not reveal which parent's email address belongs to which family or child.

@@ -37,7 +37,7 @@ Every ✅ claim in this file maps to something that can be run or read.
 | Control | Evidence | Runs automatically |
 |---|---|---|
 | Row Level Security on every table, deny by default; a test fails if any table lacks RLS or a cross-family test | `supabase/migrations/20261116000300_rls.sql`; [`src/server-tests/access.test.ts`](../src/server-tests/access.test.ts) ("schema guarantees") | `npm test` (CI after merge) |
-| Not signed in (`anon`): no privilege on any table or function; sign-in fingerprints never selectable | `20261116000600_grants.sql`; `access.test.ts` ("schema guarantees", "not signed in") | `npm test` |
+| Not signed in (`anon`): no privilege on any table, and no function except `keep_alive()` (a yes/no); sign-in fingerprints never selectable | `20261116000600_grants.sql`; `access.test.ts` ("schema guarantees", "not signed in") | `npm test` |
 | Every `security definer` function sets `search_path` (and validates its inputs) | All migrations; `access.test.ts` ("every security definer function sets search_path") | `npm test` |
 | Family A can never read or change family B's rows (every table, every role) | `access.test.ts` ("family A can never read family B", with a before/after snapshot of B) | `npm test` |
 | The access-control matrix (§7), each cell | `access.test.ts` ("access-control matrix (§7)"), and `deletion.test.ts` for the delete rows | `npm test` |
@@ -45,6 +45,8 @@ Every ✅ claim in this file maps to something that can be run or read.
 | Retention: erase 7 years after last activity; audit entries and proofs kept 7 years; consent anonymized; newest 200 mistakes | `private.run_retention()`; `deletion.test.ts` ("retention", "deleting the family") | `npm test` (the job itself is not scheduled yet) |
 | Leak test: a dump without the Vault keys holds no sign-in id, email, unkeyed hash, plain-text name or IP; accepted invites leave no trace; no query joins an email to a child | [`src/server-tests/leak.test.ts`](../src/server-tests/leak.test.ts) | `npm test` |
 | Parent action times rounded to the hour | Table `check` rules in `20261116000200_tables.sql`; `leak.test.ts`, `deletion.test.ts` | `npm test` |
+| Go-live decisions: admin-only primary invites; Google-only invite-only sign-in (auth hook); the daily job log and the keep-alive answer (`anon` runs only `keep_alive()`) | `20261116000700_go_live_decisions.sql`; [`src/server-tests/decisions.test.ts`](../src/server-tests/decisions.test.ts); `.github/workflows/keep-alive.yml` | `npm test`; the workflow runs once on `main` |
+| The live database matches the migrations: privileges (`has_table_privilege`, `has_function_privilege` against the migrations in PGlite), RLS, Vault, cron, time zone, exposed schemas, cross-family isolation and a leak scan with test families (rolled back) | [`scripts/live-check.mjs`](../scripts/live-check.mjs); its own tests in [`src/server-tests/live-check.test.ts`](../src/server-tests/live-check.test.ts) | By hand, per [runbook](go-live-runbook-stage1.md); results recorded here (🟡 not run yet) |
 
 ---
 
@@ -85,6 +87,8 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 | Reference lists (schools, grades) | — | Server (🧪 `ref_schools`, `ref_grades`), **empty** in phase 1 | A future class rollout | Signed-in parents read; the admin manages | Until the admin removes them |
 | Parent PIN | Device, plain text (a child gate, §8) | Server: per parent, slow salted hash | Quick re-unlock of the parent area | Nobody can read it back | Until changed or the parent leaves |
 | Parent email | — | Supabase sign-in only | Sign-in | Supabase sign-in system; **not linkable to a family** (§9.3) | Until the parent's account is deleted |
+| Google profile (name, picture URL, Google account id), which Google sends at sign-in | — | Supabase sign-in only (`auth.users` metadata, `auth.identities`); never copied into app tables | Not used by the app; Supabase stores it with every Google sign-in | Supabase sign-in system and the owner; **not linkable to a family** (§9.3) | Until the parent's account is deleted |
+| Daily job log: run time (rounded to the hour), count of late erasures | — | Server (🧪 `private.retention_runs`); no ids | The keep-alive check and the `erased_late` alert (§12.7) | Owner; `keep_alive()` answers only yes/no | 90 days |
 | Family name | — | Server, encrypted (🧪 `families.name_enc`) | Display to the family | That family | Until the family is deleted |
 | Consent record (notice version, date) | — | Server, by family-only member id (🧪 `consent_records`) | Proof of consent | Owner (without names) | While the family exists, then anonymized |
 | Security audit log | — | Server, member ids and rounded times only (🧪 `audit_log`) | Accountability, abuse detection | Owner | **7 years** from the entry; holds no names, emails or family ids |
@@ -112,7 +116,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 
 | Threat | Example | Controls | Status |
 |---|---|---|---|
-| **Spoofing** | Someone signs in as a parent | Invite-only sign-in, email link or Google, no passwords. MFA deferred (§12) | 🟡 |
+| **Spoofing** | Someone signs in as a parent | Invite-only sign-in with Google only (an auth hook refuses accounts without an invite; 🧪 `decisions.test.ts`), no passwords, no email links. MFA deferred (§12) | 🟡 |
 | | A child opens the parent area on their own phone | Today: 4-digit PIN (a child gate). Family View: server data needs the parent's own sign-in; per-parent PIN only re-unlocks (§8) | ✅ / 🟡 |
 | **Tampering** | A child edits a parent-made test score, or reads its answers | Tests are scored **on the server**; the child's device never holds the answer key before release (§12) | 🧪 the key is kept apart and the device never reads it, score and note are hidden until release (`access.test.ts`) / 🟡 server scoring |
 | | A malicious backup file | Strict sanitizer, size limit, forbidden keys | ✅ |
@@ -153,7 +157,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 ## 7. Access-control matrix (Family View)
 | Action | Admin | Primary user | Parent | Child device |
 |---|---|---|---|---|
-| Invite a primary user | ✅ | ✅ | — | — |
+| Invite a primary user | ✅ | ❌ (owner decision 2026-11-16) | — | — |
 | Create a family | — | ✅ | — | — |
 | Invite or remove a parent; hand over the primary role | — | ✅ (removal waits 7 days) | — | — |
 | Read the family's children, progress and tests | ❌ (unless also a parent in that family) | ✅ | ✅ | Only its own children |
@@ -168,7 +172,8 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU r
 Each cell becomes an automated test (a "can't" is tested as strictly as a "can").
 
 🧪 **Built and tested** (step 2): every row above is a test in [`src/server-tests/access.test.ts`](../src/server-tests/access.test.ts) ("access-control matrix (§7)"); the two delete rows are in [`deletion.test.ts`](../src/server-tests/deletion.test.ts). A refusal must be a refusal error (no privilege, RLS, a rule), so a broken query in a test fails instead of passing. Notes on the build:
-- "Invite a primary user" for a primary user is built as the matrix says: any primary user can invite another primary user, who then creates **their own** family. Revisit if that's broader than meant.
+- "Invite a primary user": only the admin (owner decision 2026-11-16, `…0700_go_live_decisions.sql`). A primary user is refused (tested). The owner's own first invite is made in the SQL editor (`private.owner_invite_primary`), because there is no admin before the owner's first sign-in.
+- Sign-in is **Google only** (§12). Supabase must allow new sign-ups for Google's first sign-in and for anonymous child devices, so invite-only is enforced by the "before user created" auth hook (`public.auth_before_user_created`): a Google account is created only if its email has a pending invite (HMAC of the lower-cased email; tested with mixed-case Google-style claims in [`decisions.test.ts`](../src/server-tests/decisions.test.ts)).
 - A child device signs in **anonymously** (no email) and joins with a one-time code from a parent. It sees and writes only the children a parent assigned to it, and only under its own device id. Parents can't write practice progress.
 - The admin is a separate list (`app_admins`, by HMAC). Being admin gives no access to any family's rows or names.
 
@@ -183,7 +188,7 @@ Each cell becomes an automated test (a "can't" is tested as strictly as a "can")
 - The PIN only re-unlocks the parent area on a device where that parent is already signed in. At least 6 digits.
 - Stored only as a **slow, salted hash** (Argon2id or PBKDF2), tied to the family-only member id. It is checked on the server, with an attempt limit (for example 5), after which a full sign-in is required.
 - On a device with no connection, a locally cached hash can unlock only the data already on that device.
-- **Forgotten PIN:** the parent signs in again (email link or Google) and sets a new one. There is no recovery path that bypasses the parent's own sign-in.
+- **Forgotten PIN:** the parent signs in again with Google and sets a new one. There is no recovery path that bypasses the parent's own sign-in.
 - When sync goes live, the old device PIN is discarded and each parent sets their own.
 
 ---
@@ -230,7 +235,7 @@ All data is on the family's own devices; the owner holds none.
 | Case | Procedure |
 |---|---|
 | **A. A parent who can sign in** | Self-service in the app: delete a child (every parent must approve), delete the family, delete their own account, export everything. Leaving as the last parent deletes the family, with a warning and the restore window (until the nightly cleanup two days later). |
-| **B. A parent asks by email or letter instead** | The owner starts a **verified request** (an admin function that takes only the email address). The system sends a one-time link to that address. When the person clicks it, the server resolves the family through the HMAC and carries out the request **under the same rules as in-app**: export, or delete with the other parents' approval. The owner sees only "verified / completed / waiting for other parents", never which family. |
+| **B. A parent asks by email or letter instead** | The owner starts a **verified request** (an admin function that takes only the email address). The person proves they own that address by signing in with Google at a deletion-request page (no email provider, §12.5; not built yet). Once they have, the server resolves the family through the HMAC and carries out the request **under the same rules as in-app**: export, or delete with the other parents' approval. The owner sees only "verified / completed / waiting for other parents", never which family. |
 | **C. The requester lost access to their email** | They give the **family reference code** (a random code shown in the parent area; stored only as an HMAC), and another parent in the family confirms in the app. If they are the only parent and have neither email nor code, the request can't be verified, and acting on it would risk deleting a stranger's data. They are told so. The unverified request stays on file for the owner to decide, and the **7-year limit** (§3) guarantees erasure within a bounded time anyway. |
 | **D. A guardian who isn't a parent in the app** (for example, a parent who was never invited) | Their legal right is checked outside the app first (owner's decision). To locate the data, they need the family reference code, or one of the child's linked devices: the device can show a one-time "deletion request" code that goes to the family's parents for approval. Without either, the data can't be found; the request stays on file for the owner to decide, and the 7-year limit still applies. |
 | **E. The child's own device** | Local data: delete in the parent area, or clear site data. Server data: deleting a child sends a deletion marker (tombstone) to every linked device, and revoked devices are wiped at their next sync. |
@@ -247,8 +252,10 @@ All data is on the family's own devices; the owner holds none.
 | GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy) | No server data yet; the meta CSP covers scripts and connections | **Before Family View goes live:** move to a host that sends headers (Cloudflare Pages or Netlify) |
 | Low and moderate advisories in build-only tools (`workbox-build` → `deepmerge`, `@rollup/plugin-node-resolve`) | Build-time only, process only this project's own files, no fix released upstream; high and critical are blocked by the CI gate | Each Dependabot update |
 | Practice answers are checked on the device, so a child could tamper with practice stars | Practice needs instant feedback; tests (what a parent reviews) are scored on the server | Never for tests; practice stays as is |
-| No MFA in the app (phase 1) | Invite-only sign-in by email link or Google; two families | Before any wider rollout |
-| Supabase free tier: no backups; project pauses after inactivity | Phones hold full copies; nothing is lost when paused | Before relying on the server as the only copy |
+| No MFA in the app (phase 1) | Invite-only sign-in with Google (Google's own account security applies); two families | Before any wider rollout |
+| Supabase free tier: no backups; project pauses after inactivity | Phones hold full copies; nothing is lost when paused. A `pg_dump` before every database change once real data exists; a daily keep-alive request (§12.5) | Before relying on the server as the only copy |
+| A parent in two families has the same sign-in fingerprint (HMAC) in both, so a database dump shows that two families share a parent (not who) | One HMAC per sign-in keeps lookups simple; the dump still holds no email, id or plain name; two families today (owner decision 2026-11-16) | If many families join, or a parent can be in more than one family in practice |
+| No CAPTCHA on anonymous (child device) sign-in | A CAPTCHA is a third-party script (§14); an anonymous account can do nothing without a parent's one-time code; Supabase rate limits apply (owner decision 2026-11-16) | If anonymous sign-ups are abused (watch the auth logs) |
 
 ---
 
@@ -266,15 +273,23 @@ All data is on the family's own devices; the owner holds none.
 3. **Streaks:** no changes for now.
 4. **MFA:** not in phase 1.
 
+**Go-live decisions (owner, 2026-11-16; [go-live-plan.md](go-live-plan.md) Stage 0):**
+
+5. **Sign-in: Google only.** No email provider and no magic links: Supabase's built-in mailer is limited, and another email provider would be one more processor. Because Supabase needs sign-ups allowed for Google's first sign-in and for anonymous devices, invite-only is enforced by the "before user created" auth hook (§7). The external deletion requests of §10 B, which assumed a one-time email link, will verify the requester through Google sign-in instead (Stage 6).
+6. **No CAPTCHA**, because it would be a third-party script. Rate limits only; an anonymous device can do nothing without a parent's one-time code (§11).
+7. **Free-tier pausing: a daily keep-alive request** from GitHub Actions (`.github/workflows/keep-alive.yml`) calls `public.keep_alive()`, the only function `anon` may run. It answers one yes/no: did the daily job run in the last 26 hours, with no late erasure (`erased_late`) in the last 30 days? A "no" fails the workflow and GitHub emails the owner; this is the `erased_late` alert.
+8. **Only the admin invites a primary user** (§7).
+9. **A shared parent fingerprint across two families is accepted** (§11).
+
 ---
 
 ## 13. Supabase configuration baseline (🟡, check before go-live)
-- Public sign-ups **off** (invite only); unused sign-in providers off; email-enumeration protection on; email link and Google only.
+- **Google** sign-in and **anonymous** sign-in (child devices) only; the email provider and every other provider off. "Allow new users to sign up" stays **on** (Google's first sign-in and anonymous sign-in need it); invite-only is enforced by the "before user created" hook, which must be switched on (Authentication → Hooks). Rate limits on anonymous sign-ins; no CAPTCHA (§12.6).
 - MFA on the owner's Supabase account: recommended (MFA inside the app is deferred, §12).
 - Every table in exposed schemas has RLS **enabled**, plus a test that fails otherwise (🧪 in PGlite). The Supabase security advisor shows no errors (🟡 check on the real project).
 - Only the API schema is exposed; internal schemas are not (internal functions live in `private`; 🟡 check the API settings).
 - Security-definer functions set `search_path` and validate every input (🧪 tested).
-- The two Vault keys exist before first use, and the maintenance job (`private.run_retention()`) runs once a day at 20:30 UTC through `pg_cron` (🟡).
+- The two Vault keys exist before first use, and the maintenance job (`private.daily_maintenance()`, which runs `private.run_retention()` and logs it) runs once a day at 20:30 UTC through `pg_cron` (🟡). `scripts/live-check.mjs` checks all of this against the live database ([runbook](go-live-runbook-stage1.md)).
 - Short sign-in token lifetime with refresh-token rotation.
 - The CSP `connect-src` lists **only** the project's own Supabase URL. `check-dist` will be updated to allow exactly that host.
 - EU region (Frankfurt); the provider's data-processing agreement and sub-processor list on file.
@@ -292,7 +307,7 @@ All data is on the family's own devices; the owner holds none.
 
 ## 15. Incident response (runbook)
 1. **Contain:** revoke keys or sessions (rotate Vault keys, service-role key, anon key), pause the Supabase project if needed, and revoke affected devices.
-2. **Assess:** what data, how many families, whether the leak includes Vault keys (decides whether names and the email link are exposed).
+2. **Assess:** what data, how many families, whether the leak includes Vault keys (decides whether names and the email-to-family link are exposed).
 3. **Notify:** the families concerned, and the regulator where the law requires it, within the legal deadlines. ⬜ Owner to record the applicable Israeli notification rules and deadlines here.
 4. **Recover:** fix, rotate, restore from phones (they hold full copies), and verify with the leak test and the access-control tests.
 5. **Learn:** update this file, the threat model and the tests.

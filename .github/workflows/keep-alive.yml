@@ -1,0 +1,44 @@
+# Daily keep-alive for the Supabase free tier (docs/go-live-plan.md, Stage 0).
+# One harmless request: public.keep_alive(), which touches the database (so the project isn't
+# paused for inactivity) and answers one yes/no: did the daily maintenance job run in the last
+# 26 hours, with no late erasure in the last 30 days? A "no" fails this workflow, and GitHub
+# emails the repository owner.
+#
+# Runs only once this file is on `main`. Needs, in Settings → Secrets and variables → Actions:
+#   variable  SUPABASE_URL       https://<project-ref>.supabase.co
+#   secret    SUPABASE_ANON_KEY  the project's public anon (publishable) key
+# Not set yet → the workflow skips quietly. No third-party actions; no repository access.
+# GitHub turns scheduled workflows off after 60 days without commits; re-enable it if that happens.
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # 06:17 UTC daily, about 10 hours after the 20:30 UTC maintenance run
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    permissions: {}
+    timeout-minutes: 5
+    steps:
+      - name: Ask the database whether the daily job is healthy
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "SUPABASE_URL or SUPABASE_ANON_KEY is not set; skipping."
+            exit 0
+          fi
+          answer=$(curl --silent --show-error --fail --max-time 30 --retry 3 --retry-delay 20 \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/keep_alive" \
+            -H "apikey: $SUPABASE_ANON_KEY" -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" -d '{}')
+          echo "keep_alive: $answer"
+          if [ "$answer" != "true" ]; then
+            echo "::error::The daily maintenance job did not run in the last 26 hours, or an erasure was late. See docs/go-live-plan.md."
+            exit 1
+          fi

@@ -12,6 +12,8 @@
 create role anon nologin noinherit;
 create role authenticated nologin noinherit;
 create role service_role nologin noinherit bypassrls;
+-- On Supabase: the role the Auth server uses; it calls auth hooks such as "before user created".
+create role supabase_auth_admin nologin noinherit;
 
 -- Supabase keeps extensions in their own schema.
 create schema if not exists extensions;

@@ -96,7 +96,7 @@ describe('schema guarantees', () => {
     expect(rows.map((r) => r.relname).sort()).toEqual(Object.keys(TABLES).sort());
   });
 
-  it('the anon role (not signed in) has no privilege on any table or function', async () => {
+  it('the anon role (not signed in) has no privilege on any table, and runs only the keep-alive function', async () => {
     const tables = await db.owner(`select table_name, privilege_type from information_schema.role_table_grants
       where grantee in ('anon', 'PUBLIC') and table_schema in ('public', 'private')`);
     expect(tables).toEqual([]);
@@ -105,7 +105,7 @@ describe('schema guarantees', () => {
     expect(cols).toEqual([]);
     const fns = await db.owner(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname in ('public', 'private') and has_function_privilege('anon', p.oid, 'execute')`);
-    expect(fns).toEqual([]);
+    expect(fns).toEqual([{ proname: 'keep_alive' }]);
   });
 
   it('every security definer function sets search_path', async () => {
@@ -123,7 +123,8 @@ describe('schema guarantees', () => {
       'private.my_device_id', 'private.my_family_ids', 'private.my_hmac', 'private.my_test_ids',
     ]);
     const owner = await db.owner(`select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'private' and p.proname in ('run_retention', 'add_admin', 'erase_family', 'hmac', 'decrypt_text')
+      where ((n.nspname = 'private' and p.proname in ('run_retention', 'daily_maintenance', 'owner_invite_primary', 'add_admin', 'erase_family', 'hmac', 'decrypt_text'))
+          or (n.nspname = 'public' and p.proname = 'auth_before_user_created'))
         and has_function_privilege('authenticated', p.oid, 'execute')`);
     expect(owner).toEqual([]);
   });
@@ -236,9 +237,9 @@ describe('family A can never read family B', () => {
 });
 
 describe('access-control matrix (§7)', () => {
-  it('invite a primary user: admin and primary users only', async () => {
+  it('invite a primary user: the admin only (owner decision 2026-11-16)', async () => {
     await db.as(w.admin, `select public.invite_primary('new1@example.org')`);
-    await db.as(w.A.primary, `select public.invite_primary('new2@example.org')`);
+    await denied(db.as(w.A.primary, `select public.invite_primary('new2@example.org')`));
     await denied(db.as(w.A.parent, `select public.invite_primary('new3@example.org')`));
     await denied(db.as(w.A.device, `select public.invite_primary('new4@example.org')`));
     await denied(db.as(w.stranger, `select public.invite_primary('new5@example.org')`));
