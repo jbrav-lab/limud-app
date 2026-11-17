@@ -251,13 +251,13 @@ All data is on the family's own devices; the owner holds none.
 |---|---|---|
 | Device storage is unencrypted | Anyone holding an unlocked phone can open the app anyway; a key on the device would sit next to the data | Data becomes more sensitive, or a native app is built |
 | 4-digit device PIN today | A child gate over data already on the device | Family View launch (replaced by per-parent PINs) |
-| GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy) | No server data yet; the meta CSP covers scripts and connections | **Before Family View goes live:** move to a host that sends headers (Cloudflare Pages or Netlify) |
+| GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy) | The meta CSP covers scripts and connections; no third-party scripts | Accepted for the three-family beta (§12.11). **Before the classroom beta or any wider rollout:** move to a host that sends headers (Cloudflare Pages or Netlify) |
 | Low and moderate advisories in build-only tools (`workbox-build` → `deepmerge`, `@rollup/plugin-node-resolve`) | Build-time only, process only this project's own files, no fix released upstream; high and critical are blocked by the CI gate | Each Dependabot update |
 | Practice answers are checked on the device, so a child could tamper with practice stars | Practice needs instant feedback; tests (what a parent reviews) are scored on the server | Never for tests; practice stays as is |
-| No MFA in the app (phase 1) | Invite-only sign-in with Google (Google's own account security applies); two families | Before any wider rollout |
+| No MFA in the app (phase 1) | Invite-only sign-in with Google (Google's own account security applies); three related beta families (§12.11) | Before any wider rollout |
 | Supabase free tier: no backups; project pauses after inactivity | Phones hold full copies; nothing is lost when paused. A `pg_dump` before every database change once real data exists; a daily keep-alive request (§12.5) | Before relying on the server as the only copy |
-| A parent in two families has the same sign-in fingerprint (HMAC) in both, so a database dump shows that two families share a parent (not who) | One HMAC per sign-in keeps lookups simple; the dump still holds no email, id or plain name; two families today (owner decision 2026-11-16) | If many families join, or a parent can be in more than one family in practice |
-| Server data stored in Australia (Sydney), outside the EU and Israel | Small, free, two families; consent plus Supabase's DPA; no email, sign-in id or plain-text name is readable without the Vault keys (§9.3); owner decision 2026-11-17 (§12.10) | The app pays for its own hosting, or more families join |
+| A parent in two families has the same sign-in fingerprint (HMAC) in both, so a database dump shows that two families share a parent (not who) | One HMAC per sign-in keeps lookups simple; the dump still holds no email, id or plain name; three related beta families (owner decision 2026-11-16; §12.11) | If many families join, or a parent can be in more than one family in practice |
+| Server data stored in Australia (Sydney), outside the EU and Israel | Small, free, three related beta families; consent plus Supabase's DPA; no email, sign-in id or plain-text name is readable without the Vault keys (§9.3); owner decision 2026-11-17 (§12.10) | The app pays for its own hosting, or more families join |
 | No CAPTCHA on anonymous (child device) sign-in | A CAPTCHA is a third-party script (§14); an anonymous account can do nothing without a parent's one-time code; Supabase rate limits apply (owner decision 2026-11-16) | If anonymous sign-ups are abused (watch the auth logs) |
 
 ---
@@ -284,6 +284,17 @@ All data is on the family's own devices; the owner holds none.
 8. **Only the admin invites a primary user** (§7).
 9. **A shared parent fingerprint across two families is accepted** (§11).
 10. **Region: Sydney (ap-southeast-2), not the EU** (owner, 2026-11-17). The project already existed there, and moving means a new project. While the app is free and run by one family for two families, it stays in Sydney; if it grows enough to pay for itself, it moves to an EU region (a new project, the migrations re-applied, data moved with `pg_dump`, and the site's CSP updated). The transfer basis is the parents' informed consent, which the privacy notice must name (data is stored in Australia), plus Supabase's data-processing agreement (§11).
+11. **Beta: three related families** (owner, 2026-11-17). All three are in the owner's own family and are willing beta testers. The beta scope (tests, results, mistakes, per-parent PIN) and what is deferred are in [go-live-plan.md](go-live-plan.md) Stage 0b. During the beta, a deletion request goes to the owner, who carries it out with the database's deletion functions; it is completed within the §12.2 time limit. The accepted risks in §11 marked "three related beta families" rest on this decision.
+12. **Classroom beta: considered, not decided** (owner, 2026-11-17). The owner is willing to run **one beta in up to 6 classes** (classes, not grades): at most about **170 children and their parents**, before the stricter security measures are built.
+   - **Owner's reasoning:** the server is designed so that it holds no readable email, sign-in id or plain-text name (§9.3), and a deployment of 6 classes is small scale; this holds even while the app is still on GitHub Pages.
+   - **What the design actually gives:** the data is **pseudonymized, not anonymous**. Names are encrypted and sign-ins are HMACs, but the keys are in the same project (Vault), and each child's results stay linked to that child and family. Pseudonymized data about children is still personal data under Israeli privacy law and the GDPR. Nothing on the server is aggregated.
+   - **Before a classroom beta starts, these must be done or re-decided:**
+     - the full privacy notice and each parent's consent (§10, §16), and the data-protection impact assessment (§16) updated for about 170 children;
+     - the school's agreement, and any Ministry of Education requirements for apps used in class;
+     - "delete my account", leaving a family, and externally verified deletion requests (§10), because the owner can't handle requests by hand at that scale;
+     - the incident runbook's notification rules (§15);
+     - every accepted risk in §11 that rests on "three related beta families": no MFA, the shared parent fingerprint, the Sydney region, GitHub Pages without security headers, and the free tier without backups;
+     - whether teachers see results: the design has parents only; a teacher role would be a design change.
 
 ---
 
@@ -325,7 +336,7 @@ Project `limud` (ref `adwtnunulufninshravy`, Sydney, Postgres 17, free plan). Mi
 5. **Learn:** update this file, the threat model and the tests.
 
 ## 16. Data-protection impact assessment (summary)
-- **Processing:** learning progress of minors, in two families, for education and parent oversight.
+- **Processing:** learning progress of minors, in three related beta families (§12.11), for education and parent oversight.
 - **Necessity:** syncing is needed to move between devices and to let parents review from their own phones. The data collected is the minimum for that.
 - **Main risks:** children's learning results exposed, and parents linked to children.
 - **Mitigations:** §§4–10.

@@ -26,6 +26,16 @@ Each stage has a **gate** (what must be true before the next stage) and a **way 
 
 All but the last are in the migration `…0700_go_live_decisions.sql` and tested in `src/server-tests/decisions.test.ts`.
 
+## Stage 0b: the beta (owner, 2026-11-17)
+- **Users: three families,** all in the owner's own family, each a willing beta tester. The core need is **parent oversight through tests**: without it the app is not useful enough for a parent to follow what the children learn.
+- **In the beta:** Stage 2 in full; Stage 3 (Google sign-in, admin invites of each family's primary parent, device pairing, a short Hebrew note on what is stored and where, with consent); Stage 4 for **test results and mistakes only**; Stages 5–6 for **tests** (a parent creates a test, the child takes it, the server scores it, the parent sees results and mistakes, the answer key is released) and the **per-parent PIN** (a child on a shared phone must not reach answer keys).
+- **Deferred until after the beta:**
+  - syncing profiles, counters and topic progress (each phone keeps its own);
+  - in-app notifications, answer overrides;
+  - "delete my account", leaving a family, and externally verified deletion requests: during the beta a family asks the owner, who deletes it with the existing database functions;
+  - the full privacy notice; moving off GitHub Pages (accepted for the beta, security file §11).
+- **A classroom beta is considered, not decided:** up to **6 classes** (classes, not grades), at most about 170 children and their parents, as one beta before the stricter measures. Its preconditions are in the security file §12.12.
+
 ## Stage 1: database live
 Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.md)**.
 - `supabase link`, then `supabase db push`.
@@ -77,7 +87,7 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 - The owner fills in the incident runbook's notification rules first (security file §15).
 - The owner's family first, for one week, with each phone backed up before pairing.
 - A leak test on a real dump with real data present (`pg_dump --data-only`, then the checks of `leak.test.ts`).
-- Then the second family.
+- Then the other two beta families (Stage 0b).
 
 **Gate for each of Stages 3–6:**
 - the tests pass;

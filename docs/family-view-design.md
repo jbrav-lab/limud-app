@@ -4,7 +4,7 @@
 The technical sync plan (tables, merge rules, Row Level Security, build order) is [sync-supabase-plan.md](sync-supabase-plan.md). This document sets the **scope and the product rules** for its first phase.
 
 ## Scope
-- **Users now:** two families (the owner's and the owner's sister's).
+- **Users now:** two families (the owner's and the owner's sister's). **Beta (2026-11-17):** three families, all in the owner's own family ([go-live-plan.md](go-live-plan.md) Stage 0b). A classroom beta of up to 6 classes is considered, not decided (security file §12.12).
 - **In phase 1:** sign-in, families, server-side sync of every child's activity, parent oversight from a parent's own phone, and parent-made tests.
 - **Not in phase 1:** schools, classes, teachers, and any anonymous comparison between children. These are parked under [Future: class rollout](#future-class-rollout-opt-in-with-school-approval). Phase 1 only prepares the data for them.
 - **Hosting:** the owner's existing Supabase free-tier project is enough.
