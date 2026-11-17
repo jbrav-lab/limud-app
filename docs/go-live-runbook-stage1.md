@@ -57,6 +57,8 @@ npx supabase db push --remote
 Applies them, after asking you to confirm. **From now on these files are frozen.**
 
 ## 4. Run the setup snippet yourself
+**Done 2026-11-17:** pg_cron on, both keys created (values never shown), job `limud-maintenance` active.
+
 1. **Database → Extensions** (or Integrations → Cron): enable **pg_cron**. Vault (`supabase_vault`) is on by default; check that it is.
 2. **SQL Editor → New query.** Paste, run once, then close the tab without saving:
    ```sql
@@ -69,6 +71,8 @@ Applies them, after asking you to confirm. **From now on these files are frozen.
    - **Never run the key lines twice.** New keys would make existing data unreadable.
 
 ## 5. Hook and checks
+**Done 2026-11-17:** hook on; advisor 0 errors; live check 18 passed, 0 failed (recorded in security-privacy.md §13). The connection string goes **only** into the hidden `Read-Host` prompt: typed at the normal prompt, it shows on screen and is saved in PowerShell's history.
+
 1. **Authentication → Hooks → Before User Created:** add a hook of type **Postgres**, function `public.auth_before_user_created`, and enable it. If the screen lists only some schemas, choose `public`.
 2. **Advisors → Security Advisor:** run it. Expect no errors. Note any warnings for Claude.
 3. **Run the live check.** In PowerShell:
@@ -87,6 +91,8 @@ Applies them, after asking you to confirm. **From now on these files are frozen.
 4. Close PowerShell afterwards; that forgets the variables.
 
 ## 6. The real deletion flow
+**In progress:** `create` and `delete` ran 2026-11-17 (D). Run `status` on **2026-11-20** (D+3).
+
 In a PowerShell window with the same variables set (step 5.3):
 ```powershell
 node scripts/live-test-family.mjs create

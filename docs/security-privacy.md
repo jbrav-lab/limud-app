@@ -42,11 +42,13 @@ Every ✅ claim in this file maps to something that can be run or read.
 | Family A can never read or change family B's rows (every table, every role) | `access.test.ts` ("family A can never read family B", with a before/after snapshot of B) | `npm test` |
 | The access-control matrix (§7), each cell | `access.test.ts` ("access-control matrix (§7)"), and `deletion.test.ts` for the delete rows | `npm test` |
 | Deletion rules: every parent approves; 7-day expiry; 7-day parent removal that blocks deletion; soft delete restorable until the daily run on D+2 (Israel date), which erases it, before the 00:00 D+3 deadline; never zero parents; one primary user | `20261116000500_deletion_retention.sql`; [`src/server-tests/deletion.test.ts`](../src/server-tests/deletion.test.ts) ("the day rule for erasing": 00:01 and 23:59 requests, every hour of D+1 and D+2, both daylight-saving changes, the 20:30 UTC schedule for 2026–2030) | `npm test` |
-| Retention: erase 7 years after last activity; audit entries and proofs kept 7 years; consent anonymized; newest 200 mistakes | `private.run_retention()`; `deletion.test.ts` ("retention", "deleting the family") | `npm test` (the job itself is not scheduled yet) |
+| Retention: erase 7 years after last activity; audit entries and proofs kept 7 years; consent anonymized; newest 200 mistakes | `private.run_retention()`; `deletion.test.ts` ("retention", "deleting the family") | `npm test`; on the live project the daily job is scheduled (live check, 2026-11-17) |
 | Leak test: a dump without the Vault keys holds no sign-in id, email, unkeyed hash, plain-text name or IP; accepted invites leave no trace; no query joins an email to a child | [`src/server-tests/leak.test.ts`](../src/server-tests/leak.test.ts) | `npm test` |
 | Parent action times rounded to the hour | Table `check` rules in `20261116000200_tables.sql`; `leak.test.ts`, `deletion.test.ts` | `npm test` |
 | Go-live decisions: admin-only primary invites; Google-only invite-only sign-in (auth hook); the daily job log and the keep-alive answer (`anon` runs only `keep_alive()`) | `20261116000700_go_live_decisions.sql`; [`src/server-tests/decisions.test.ts`](../src/server-tests/decisions.test.ts); `.github/workflows/keep-alive.yml` | `npm test`; the workflow runs once on `main` |
-| The live database matches the migrations: privileges (`has_table_privilege`, `has_function_privilege` against the migrations in PGlite), RLS, Vault, cron, time zone, exposed schemas, cross-family isolation and a leak scan with test families (rolled back) | [`scripts/live-check.mjs`](../scripts/live-check.mjs); its own tests in [`src/server-tests/live-check.test.ts`](../src/server-tests/live-check.test.ts) | By hand, per [runbook](go-live-runbook-stage1.md); results recorded here (🟡 not run yet) |
+| The live database matches the migrations: privileges (`has_table_privilege`, `has_function_privilege` against the migrations in PGlite), RLS, Vault, cron, time zone, exposed schemas, cross-family isolation and a leak scan with test families (rolled back) | [`scripts/live-check.mjs`](../scripts/live-check.mjs); its own tests in [`src/server-tests/live-check.test.ts`](../src/server-tests/live-check.test.ts) | By hand, per [runbook](go-live-runbook-stage1.md). **Run 2026-11-17 on the live project: 18 passed, 0 failed**, rolled back (details in §13) |
+| Supabase security advisor on the live project: no errors | `supabase db advisors --remote --type security` (CLI 3.2.0) | **2026-11-17: 0 errors**; the warnings are by design (§13); re-run after every migration |
+| The real deletion flow on the live project: two test families, deleted through the API by both parents, erased by the nightly run | [`scripts/live-test-family.mjs`](../scripts/live-test-family.mjs) (`create`, `delete`, `status`) | Created and soft-deleted 2026-11-17 (day D); 🟡 `status` on 2026-11-20 (D+3) must show 0 test families and 0 late erasures |
 
 ---
 
@@ -59,7 +61,7 @@ Every ✅ claim in this file maps to something that can be run or read.
 - **GitHub** (as host) receives standard web-request data (IP address, user agent) for page loads. The project owner does not receive or keep it. The privacy notice should say so.
 
 ### Family View (designed, not built)
-Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, EU region. Phones stay the main copy and sync when online. Details: [family-view-design.md](family-view-design.md).
+Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, in Supabase's Sydney region (ap-southeast-2; §12.10). Phones stay the main copy and sync when online. Details: [family-view-design.md](family-view-design.md).
 
 ---
 
@@ -255,6 +257,7 @@ All data is on the family's own devices; the owner holds none.
 | No MFA in the app (phase 1) | Invite-only sign-in with Google (Google's own account security applies); two families | Before any wider rollout |
 | Supabase free tier: no backups; project pauses after inactivity | Phones hold full copies; nothing is lost when paused. A `pg_dump` before every database change once real data exists; a daily keep-alive request (§12.5) | Before relying on the server as the only copy |
 | A parent in two families has the same sign-in fingerprint (HMAC) in both, so a database dump shows that two families share a parent (not who) | One HMAC per sign-in keeps lookups simple; the dump still holds no email, id or plain name; two families today (owner decision 2026-11-16) | If many families join, or a parent can be in more than one family in practice |
+| Server data stored in Australia (Sydney), outside the EU and Israel | Small, free, two families; consent plus Supabase's DPA; no email, sign-in id or plain-text name is readable without the Vault keys (§9.3); owner decision 2026-11-17 (§12.10) | The app pays for its own hosting, or more families join |
 | No CAPTCHA on anonymous (child device) sign-in | A CAPTCHA is a third-party script (§14); an anonymous account can do nothing without a parent's one-time code; Supabase rate limits apply (owner decision 2026-11-16) | If anonymous sign-ups are abused (watch the auth logs) |
 
 ---
@@ -280,19 +283,28 @@ All data is on the family's own devices; the owner holds none.
 7. **Free-tier pausing: a daily keep-alive request** from GitHub Actions (`.github/workflows/keep-alive.yml`) calls `public.keep_alive()`, the only function `anon` may run. It answers one yes/no: did the daily job run in the last 26 hours, with no late erasure (`erased_late`) in the last 30 days? A "no" fails the workflow and GitHub emails the owner; this is the `erased_late` alert.
 8. **Only the admin invites a primary user** (§7).
 9. **A shared parent fingerprint across two families is accepted** (§11).
+10. **Region: Sydney (ap-southeast-2), not the EU** (owner, 2026-11-17). The project already existed there, and moving means a new project. While the app is free and run by one family for two families, it stays in Sydney; if it grows enough to pay for itself, it moves to an EU region (a new project, the migrations re-applied, data moved with `pg_dump`, and the site's CSP updated). The transfer basis is the parents' informed consent, which the privacy notice must name (data is stored in Australia), plus Supabase's data-processing agreement (§11).
 
 ---
 
-## 13. Supabase configuration baseline (🟡, check before go-live)
-- **Google** sign-in and **anonymous** sign-in (child devices) only; the email provider and every other provider off. "Allow new users to sign up" stays **on** (Google's first sign-in and anonymous sign-in need it); invite-only is enforced by the "before user created" hook, which must be switched on (Authentication → Hooks). Rate limits on anonymous sign-ins; no CAPTCHA (§12.6).
+## 13. Supabase configuration baseline
+Project `limud` (ref `adwtnunulufninshravy`, Sydney, Postgres 17, free plan). Migrations pushed 2026-11-17 with Supabase CLI 3.2.0. The project also has Supabase's own `public.rls_auto_enable()` event trigger (it turns RLS on for new tables); it is not ours and stays.
+
+**Live check, 2026-11-17** (`scripts/live-check.mjs`, one transaction, rolled back): 18 passed, 0 failed. Checked: Postgres 17 and the Asia/Jerusalem time zone; exactly the seven migrations applied; RLS on every public table; `anon` and `authenticated` privileges equal the migrations; every security-definer function sets `search_path`; both Vault keys readable by the functions and not by `authenticated` or `anon`; the daily job at 20:30 UTC as `postgres`; the auth hook runnable only by the auth server; two test families built through the API, with no cross-family read or change (16 tables) and no test email, sign-in id or plain name in any of the 22 public tables; admin-only primary invites; `keep_alive()` answers over the API; the `private`, `vault`, `auth` and `graphql_public` schemas are not exposed (HTTP 406).
+
+**Security advisor, 2026-11-17:** 0 errors. Warnings, all by design: `keep_alive` runnable by `anon` (intended, §12.7); the 28 API functions runnable by `authenticated` (each checks the caller's family itself); "anonymous sign-ins" on 20 tables' policies (child devices sign in anonymously and match no rows until paired with a parent's one-time code; two are Supabase's own `cron` tables, not exposed).
+
+**Credentials:** the database password is used only by the owner, for these checks; the app and the daily job never use it. On 2026-11-17 a connection string was typed at a visible prompt; the owner reset the password before the live check, so the exposed one no longer works.
+
+- **Google** sign-in and **anonymous** sign-in (child devices) only; the email provider and every other provider off. "Allow new users to sign up" stays **on** (Google's first sign-in and anonymous sign-in need it); invite-only is enforced by the "before user created" hook, which must be switched on (Authentication → Hooks). Rate limits on anonymous sign-ins; no CAPTCHA (§12.6). ✅ Set 2026-11-17 (Google stays off until Stage 3); hook switched on; Site URL and redirect URLs set to the Pages address and `localhost:5173`.
 - MFA on the owner's Supabase account: recommended (MFA inside the app is deferred, §12).
-- Every table in exposed schemas has RLS **enabled**, plus a test that fails otherwise (🧪 in PGlite). The Supabase security advisor shows no errors (🟡 check on the real project).
-- Only the API schema is exposed; internal schemas are not (internal functions live in `private`; 🟡 check the API settings).
+- Every table in exposed schemas has RLS **enabled**, plus a test that fails otherwise (🧪 in PGlite). The Supabase security advisor shows no errors (✅ 2026-11-17).
+- Only the API schema is exposed; internal schemas are not (internal functions live in `private`; ✅ live check 2026-11-17: `private`, `vault`, `auth` and `graphql_public` answer HTTP 406).
 - Security-definer functions set `search_path` and validate every input (🧪 tested).
-- The two Vault keys exist before first use, and the maintenance job (`private.daily_maintenance()`, which runs `private.run_retention()` and logs it) runs once a day at 20:30 UTC through `pg_cron` (🟡). `scripts/live-check.mjs` checks all of this against the live database ([runbook](go-live-runbook-stage1.md)).
+- The two Vault keys exist before first use, and the maintenance job (`private.daily_maintenance()`, which runs `private.run_retention()` and logs it) runs once a day at 20:30 UTC through `pg_cron` (✅ live check 2026-11-17). `scripts/live-check.mjs` checks all of this against the live database ([runbook](go-live-runbook-stage1.md)).
 - Short sign-in token lifetime with refresh-token rotation.
 - The CSP `connect-src` lists **only** the project's own Supabase URL. `check-dist` will be updated to allow exactly that host.
-- EU region (Frankfurt); the provider's data-processing agreement and sub-processor list on file.
+- Region: Sydney (ap-southeast-2) by owner decision (§12.10); move to the EU if the app pays for itself. 🟡 The provider's data-processing agreement and sub-processor list on file.
 
 ## 14. Secure development
 - **In place ✅:** every push to `main` runs audit → tests → build → `check-dist` → SBOM, and only then deploys. Actions are pinned. Dependabot is on.
