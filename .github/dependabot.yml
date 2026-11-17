@@ -1,5 +1,7 @@
 # Weekly update proposals (as pull requests) for npm packages and for the pinned GitHub Actions.
 # Security fixes are proposed as soon as an advisory is published. Nothing merges without review.
+# Cooldown: a new version is proposed only after 7 days, the window in which the 2026 npm worms were caught
+# and pulled (security file §17.3 P0-2). Security updates are not delayed.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -7,6 +9,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       build-tools:
         patterns: ['vite', 'vite-plugin-pwa', '@vitejs/*', 'vitest', 'typescript', '@types/*']
@@ -14,3 +18,5 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

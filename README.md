@@ -19,7 +19,8 @@ Progress is stored in the device's browser storage (`localStorage`). Use the par
 ## Commands
 ```bash
 npm install
-npm run dev        # dev server (also reachable from the phone on the same Wi-Fi)
+npm run dev        # dev server (this PC only)
+npm run dev:lan    # dev server reachable from a phone on the same Wi-Fi
 npm test           # runs every exercise generator 400× per level and checks the answers
 npm run build      # production build into dist/
 npm run check:dist # security and privacy checks on dist/ (also runs in CI)
@@ -30,7 +31,7 @@ npm run check:dist # security and privacy checks on dist/ (also runs in CI)
 **https://jbrav-lab.github.io/limud-app/**: published from https://github.com/jbrav-lab/limud-app by `.github/workflows/deploy.yml` on every push to `main`. The workflow runs the tests first, so a failing test blocks the deploy. Installed phones pick up the new version the next time the app is opened while online.
 
 ## Getting it onto the phone
-1. **Quick try (same Wi-Fi):** run `npm run dev`, then open `http://<PC-IP>:5173` in Chrome on the phone. This works, but it needs the PC running and doesn't work offline.
+1. **Quick try (same Wi-Fi):** run `npm run dev:lan`, then open `http://<PC-IP>:5173` in Chrome on the phone. This works, but it needs the PC running and doesn't work offline.
 2. **Installable offline app:** put `dist/` on any free HTTPS host (GitHub Pages, Netlify, Cloudflare Pages). In Chrome on the phone, use ⋮ → "Install app". The app then works fully offline.
 3. **Real APK:** install Android Studio, then add Capacitor (`@capacitor/android`) and build an APK from `dist/`.
 

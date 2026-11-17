@@ -373,7 +373,7 @@ After the Stage 2 work on `claude/sync-step2`. The OWASP Top 10:2025 matrix (§6
 | Issue | Applies? |
 |---|---|
 | CVE-2026-126187, React Server Components remote code execution | **No.** The app has no server components; React 19.3.1 is also the fixed version. |
-| Vite dev-server file read (CVE-2026-112947, Vite 8.2.0–8.2.3) | **No.** Vite 8.3.8; the dev server isn't exposed with `--host`. |
+| Vite dev-server file read (CVE-2026-112947, Vite 8.2.0–8.2.3) | **No.** Vite 8.3.8 (fixed). The review found `npm run dev` did expose the dev server to the local network (`--host`); since 2026-11-17 that is opt-in (`npm run dev:lan`, for testing on a phone at home). |
 | `serialize-javascript`, `minimatch`, `deepmerge` advisories through `workbox-build` | **Build-time only**; `npm audit` shows none on the branch (the `deepmerge` alert on `main`, low, goes with this merge). Watch Dependabot. |
 | Supabase Realtime presence RLS bypass (CVE-2026-62247) | **No.** No table is published to Realtime (checked live: 0). |
 | Supabase Auth crafted OIDC token bypass (reported as CVE-2026-31813, auth < 2.185.0; not confirmed from the official advisory) | **Hosted Supabase is patched by Supabase.** Check the project's Auth version and Supabase's advisories before Stage 3 (Google is OIDC). → P0-4 |
@@ -384,7 +384,7 @@ After the Stage 2 work on `claude/sync-step2`. The OWASP Top 10:2025 matrix (§6
 ### 17.3 Plan
 **P0, before Stage 3** (before any sign-in token or server data is on a phone):
 1. **Own origin and real headers.** *In progress 2026-11-17:* the Cloudflare project builds `main`; the headers file and its `check:dist` checks are built on the branch; the phones move with the "we've moved" handoff (go-live plan). Move the app to a host with its own origin that sends security headers (for example Cloudflare Pages, or a custom subdomain). This **changes the site address**: each phone's progress moves with a backup and restore (the restore now merges). Until then the only data on that origin is local progress, and the other site is the owner's own.
-2. **Supply chain.** In CI, install without running install scripts (`npm ci --ignore-scripts`, after checking the build doesn't need them); keep the Supabase CLI out of the CI install. Dependabot `cooldown` of 7 days for new versions (security fixes still come at once). 2FA on the GitHub, Supabase, Google and npm accounts; no long-lived tokens on the PC beyond the Supabase CLI login.
+2. **Supply chain.** *Done 2026-11-17 (except 2FA, owner):* `.npmrc` `ignore-scripts=true` (CI, Cloudflare and the PC), `npm ci --ignore-scripts` in CI, Dependabot cooldown 7 days. In CI, install without running install scripts (`npm ci --ignore-scripts`, after checking the build doesn't need them); keep the Supabase CLI out of the CI install. Dependabot `cooldown` of 7 days for new versions (security fixes still come at once). 2FA on the GitHub, Supabase, Google and npm accounts; no long-lived tokens on the PC beyond the Supabase CLI login.
 3. **Redirect URLs.** Remove `http://localhost:5173/**` from the live project's redirect list before the first real family (Stage 7); a second Supabase project for development would remove the need.
 4. **Auth version.** Confirm the hosted Auth version is past the OIDC fix before enabling Google.
 

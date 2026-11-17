@@ -31,7 +31,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # No install scripts (also set in .npmrc): a compromised package can't run code at install time.
+      - run: npm ci --ignore-scripts
       # Fails on any high or critical advisory, in shipped or build-time packages.
       - run: npm audit --audit-level=high
       - run: npm test
