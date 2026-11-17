@@ -256,7 +256,7 @@ All data is on the family's own devices; the owner holds none.
 |---|---|---|
 | Device storage is unencrypted | Anyone holding an unlocked phone can open the app anyway; a key on the device would sit next to the data | Data becomes more sensitive, or a native app is built |
 | 4-digit device PIN today | A child gate over data already on the device | Family View launch (replaced by per-parent PINs) |
-| GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy) | The meta CSP covers scripts and connections; no third-party scripts | Accepted for the three-family beta (§12.11). **Before the classroom beta or any wider rollout:** move to a host that sends headers (Cloudflare Pages or Netlify) |
+| GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy), and the site shares its origin (`jbrav-lab.github.io`) with the owner's other Pages site, so each can read the other's browser storage (§17) | The meta CSP covers scripts and connections; no third-party scripts | Accepted for local-only data. **Before Stage 3** (sign-in tokens on phones; §17.3 P0-1): move to a host that sends headers (Cloudflare Pages or Netlify) |
 | Low and moderate advisories in build-only tools (`workbox-build` → `deepmerge`, `@rollup/plugin-node-resolve`) | Build-time only, process only this project's own files, no fix released upstream; high and critical are blocked by the CI gate | Each Dependabot update |
 | Practice answers are checked on the device, so a child could tamper with practice stars | Practice needs instant feedback; tests (what a parent reviews) are scored on the server | Never for tests; practice stays as is |
 | No MFA in the app (phase 1) | Invite-only sign-in with Google (Google's own account security applies); three related beta families (§12.11) | Before any wider rollout |
@@ -347,3 +347,51 @@ Project `limud` (ref `adwtnunulufninshravy`, Sydney, Postgres 17, free plan). Mi
 - **Mitigations:** §§4–10.
 - **Residual risk:** low at the current scale, provided the 🟡 items and the §11 go-live condition are done first.
 - **Review before:** the Family View launch, and before any class rollout. A class rollout needs a new assessment (schools, teachers, aggregates).
+
+---
+
+## 17. Security review and plan (2026-11-17)
+After the Stage 2 work on `claude/sync-step2`. The OWASP Top 10:2025 matrix (§6) re-checked against the code, the live database and known 2026 vulnerabilities for this stack.
+
+### 17.1 OWASP Top 10:2025, re-checked
+| Category | Finding | Status |
+|---|---|---|
+| A01 Broken Access Control | Live check (§13): RLS on every table, privileges equal the migrations, cross-family isolation and admin-only primary invites pass on the live project. Every parent-only function refuses anonymous (device) callers. | ✅ |
+| A02 Security Misconfiguration | **New: the site shares its web origin.** `jbrav-lab.github.io` also serves `bank-of-mom-and-dad`, and browser storage is per origin, not per path: either site's scripts can read the other's `localStorage`. Today that is the children's local progress; with Family View it would also be the Supabase sign-in tokens. Also still open: no HTTP security headers on GitHub Pages (no `frame-ancestors`). | 🔴 → plan P0-1 |
+| A03 Supply Chain | `npm audit`: 0 advisories on the branch. Lockfile, `npm ci`, SHA-pinned actions, `permissions: {}`, SBOM. Gap: install scripts run in CI (the Supabase CLI package downloads a binary at install), and new versions are accepted as soon as published, the window the 2026 npm worms used. | 🟡 → P0-2 |
+| A04 Cryptographic Failures | Vault-encrypted names, HMAC unlinkability (leak test passes); 50-bit one-time pairing codes stored as HMAC. PIN hashing not built yet. | ✅ / 🟡 Stage 6 |
+| A05 Injection | No raw HTML; backup sanitizer covers the new fields; server functions have fixed `search_path` and validated input. | ✅ |
+| A06 Insecure Design | Added: shared, moved and lost devices, and roles beyond the family ([family-view-design.md](family-view-design.md), [roles-design.md](roles-design.md)). Gap: **one anonymous caller can block all device pairing** for an hour (30 failed codes, counted globally). | 🟡 → P1-1 |
+| A07 Authentication Failures | Google-only, invite-only (hook live). Not built yet: session lifetimes, sign-out everywhere, PIN attempt limit, recent sign-in for destructive actions. `http://localhost:5173/**` is an allowed redirect on the live project. | 🟡 → P1-2, P0-3 |
+| A08 Data Integrity | New: an older app copy can't overwrite newer data; upgrades tested on fixtures of every version; tombstones; grow-only counters on the server. | ✅ |
+| A09 Logging and Alerting | Audit log without personal data; the keep-alive alert for a missed or late erasure. No alert yet on failed pairings or PIN attempts. Anonymous sign-ins that never pair stay in `auth.users`. | 🟡 → P1-3 |
+| A10 Exceptional Conditions | Fail closed: a newer-data screen instead of writing; backup validated before anything changes. | ✅ |
+
+### 17.2 Known 2026 vulnerabilities, checked against this stack
+| Issue | Applies? |
+|---|---|
+| CVE-2026-126187, React Server Components remote code execution | **No.** The app has no server components; React 19.3.1 is also the fixed version. |
+| Vite dev-server file read (CVE-2026-112947, Vite 8.2.0–8.2.3) | **No.** Vite 8.3.8; the dev server isn't exposed with `--host`. |
+| `serialize-javascript`, `minimatch`, `deepmerge` advisories through `workbox-build` | **Build-time only**; `npm audit` shows none on the branch (the `deepmerge` alert on `main`, low, goes with this merge). Watch Dependabot. |
+| Supabase Realtime presence RLS bypass (CVE-2026-62247) | **No.** No table is published to Realtime (checked live: 0). |
+| Supabase Auth crafted OIDC token bypass (reported as CVE-2026-31813, auth < 2.185.0; not confirmed from the official advisory) | **Hosted Supabase is patched by Supabase.** Check the project's Auth version and Supabase's advisories before Stage 3 (Google is OIDC). → P0-4 |
+| npm worms (Mini Shai-Hulud, May; ChainDrop, August 2026): compromised maintainers republish packages with install hooks that steal CI and developer tokens | **Exposure: CI and the owner's PC** (GitHub, Supabase CLI and npm tokens). → P0-2 |
+| Exposed Supabase databases without RLS (UpGuard, September 2026) | **No.** RLS on every table, tested in CI and live. |
+| SECURITY DEFINER functions callable by `anon` | **Only `keep_alive()`**, which returns one yes/no. |
+
+### 17.3 Plan
+**P0, before Stage 3** (before any sign-in token or server data is on a phone):
+1. **Own origin and real headers.** Move the app to a host with its own origin that sends security headers (for example Cloudflare Pages, or a custom subdomain). This **changes the site address**: each phone's progress moves with a backup and restore (the restore now merges). Until then the only data on that origin is local progress, and the other site is the owner's own.
+2. **Supply chain.** In CI, install without running install scripts (`npm ci --ignore-scripts`, after checking the build doesn't need them); keep the Supabase CLI out of the CI install. Dependabot `cooldown` of 7 days for new versions (security fixes still come at once). 2FA on the GitHub, Supabase, Google and npm accounts; no long-lived tokens on the PC beyond the Supabase CLI login.
+3. **Redirect URLs.** Remove `http://localhost:5173/**` from the live project's redirect list before the first real family (Stage 7); a second Supabase project for development would remove the need.
+4. **Auth version.** Confirm the hosted Auth version is past the OIDC fix before enabling Google.
+
+**P1, with Stages 3–6:**
+1. **Pairing lockout:** count failures per caller (anonymous sign-in) with a low limit, and keep a higher global cap, so one caller can't block every family.
+2. **Sessions:** short access-token lifetime, refresh-token rotation, "sign out everywhere", "report lost" (§5, devices design); per-parent PIN checked on the server with an attempt limit; a recent Google sign-in for deleting, approving, inviting and handing over the primary role.
+3. **Alerts and cleanup:** the daily job deletes anonymous sign-ins that never paired within 24 hours, and flags repeated failed pairings or PIN attempts in the keep-alive answer.
+
+**P2, ongoing:**
+1. Run the Supabase security advisor and `live-check.mjs` after every migration.
+2. Once a month: Supabase's GitHub security advisories, Dependabot alerts, and this table.
+3. Before the classroom beta: the §12.12 preconditions and a new data-protection impact assessment.
