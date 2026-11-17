@@ -96,10 +96,10 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 - the stage is merged with the flag off.
 
 ## Hosting move (owner, 2026-11-17)
-The site moves from GitHub Pages (`jbrav-lab.github.io`, an origin shared with the owner's other Pages site) to Cloudflare, before Stage 3 (security file §17.3 P0-1).
+The site moves from GitHub Pages (`jbrav-lab.github.io`, an origin shared with the owner's other Pages site) to Cloudflare, **https://limud-app.lomdim.workers.dev/** (a Worker with static assets; account subdomain `lomdim`, chosen so the address carries no personal name), before Stage 3 (security file §17.3 P0-1).
 - Cloudflare builds `main` with the same gates as CI (audit, tests, build, `check:dist`); preview deployments are off. No Cloudflare key is stored in GitHub or on the PC.
 - `dist/_headers` sends the security headers (built; checked by `check:dist`). `Cross-Origin-Opener-Policy` is added after the move, because it would cut the handoff below.
-- **Moving the phones:** the last GitHub Pages release shows a "we've moved" button that opens the new address and hands the progress over directly (postMessage to the exact new origin only; the new site merges it like a backup restore). A backup file works too. Then GitHub Pages serves only a link to the new address.
+- **Moving the phones (built: `src/engine/move.ts`, `src/screens/Move.tsx`, tests in `move.test.ts`):** the GitHub Pages copy shows a "we've moved" button that opens the new address and hands the progress over directly (postMessage to the exact new origin only; the new site merges it like a backup restore). If the browser opens the new address without a link back (same tab, or some home-screen apps), the new page says so and the backup file is the way: save on the old address, restore on the new one. Then GitHub Pages serves only a link to the new address. Check on a real phone right after the merge.
 - After the move: Supabase Site URL and redirect URLs point to the new address; the GitHub Pages address is removed from them.
 
 ## Tooling (no Docker)

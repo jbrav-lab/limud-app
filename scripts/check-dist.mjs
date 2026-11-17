@@ -79,10 +79,12 @@ for (const f of files.filter((f) => f.endsWith('.html'))) {
 
 // 3. No third-party addresses. These hosts appear only inside library error messages and XML namespaces, never as requests.
 const TEXT_ONLY_HOSTS = new Set(['www.w3.org', 'react.dev', 'bit.ly']);
+// The app's own two addresses during the hosting move (src/engine/move.ts): a link and postMessage targets, never requests.
+const OWN_HOSTS = new Set(['jbrav-lab.github.io', 'limud-app.lomdim.workers.dev']);
 const hosts = new Map();
 for (const f of files.filter((f) => /\.(js|css|html|webmanifest|json)$/.test(f))) {
   for (const [, host] of readFileSync(f, 'utf8').matchAll(/https?:\/\/([a-zA-Z0-9.-]+)/g)) {
-    if (!TEXT_ONLY_HOSTS.has(host)) hosts.set(host, rel(f));
+    if (!TEXT_ONLY_HOSTS.has(host) && !OWN_HOSTS.has(host)) hosts.set(host, rel(f));
   }
 }
 for (const [host, where] of hosts) fail(`third-party address ${host} in ${where}`);

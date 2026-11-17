@@ -195,6 +195,10 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .choice.is-wrong { background: var(--bad-soft); border-color: var(--bad); opacity: 1; }
 
 .hint { background: var(--tip); border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 0; }
+/* The address-move notices sit above the screen (src/screens/Move.tsx). */
+.card.move { margin: max(16px, env(safe-area-inset-top)) max(16px, calc((100% - 608px) / 2)) 0; }
+.card.move + .card.move { margin-top: 8px; }
+.card.move h3 { margin-top: 0; }
 .note { color: var(--warn); font-weight: 600; text-align: center; margin: 8px 0 0; }
 .feedback { text-align: center; font-weight: 700; font-size: 1.2rem; margin: 12px 0 0; }
 .feedback.correct { color: var(--good); }
