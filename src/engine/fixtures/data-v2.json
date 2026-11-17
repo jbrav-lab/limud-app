@@ -1,0 +1,43 @@
+{
+  "about": "Stored data as data version 2 wrote it (curriculum packs, grades, themes). What the phones hold before the version-3 release.",
+  "data": {
+    "version": 2,
+    "parentPin": "4321",
+    "sound": false,
+    "profiles": [
+      { "id": "a1b2c3d4", "name": "דנה", "avatar": "🦊", "createdAt": 1700000000000, "theme": "darkfocus", "grade": 5 },
+      { "id": "z9y8x7w6", "name": "נועם", "avatar": "🐢", "createdAt": 1700000100000, "grade": 4 },
+      { "id": "q1w2e3r4", "name": "מאיה", "avatar": "🦉", "createdAt": 1700000200000, "theme": "endurance", "grade": 2 }
+    ],
+    "progress": {
+      "a1b2c3d4": {
+        "stars": 130, "streakDays": 4, "lastDay": "2026-11-14", "daily": { "2026-11-13": 12, "2026-11-14": 8 }, "sessions": 9,
+        "topics": {
+          "g5.math.average": { "level": 3, "runCorrect": 2, "runWrong": 0, "attempts": 30, "firstTry": 25, "secondTry": 3, "byLevel": [5, 5, 4], "lastAt": 1763100000000 },
+          "g5.science.cells": { "level": 2, "runCorrect": 0, "runWrong": 0, "attempts": 8, "firstTry": 6, "secondTry": 1, "byLevel": [5, 1, 0], "lastAt": 1763000000000 },
+          "g5.english.vocabulary": { "level": 1, "runCorrect": 1, "runWrong": 0, "attempts": 4, "firstTry": 2, "secondTry": 1, "byLevel": [2, 0, 0], "lastAt": 1762900000000 }
+        },
+        "mistakes": [
+          { "at": 1763100000000, "topicId": "g5.math.average", "prompt": "מאיה נתנה חצי (1/2) מן התפוחים שלה…", "given": "3", "correct": "4" },
+          { "at": 1763000000000, "topicId": "g5.science.cells", "prompt": "מה תפקיד הגרעין?", "given": "נשימה", "correct": "שליטה בתא" }
+        ],
+        "exams": [
+          { "at": 1763110000000, "topicIds": ["g5.math.average"], "packId": "g5.math", "difficulty": "easy", "questions": 6, "correct": 4, "score": 67 },
+          { "at": 1763010000000, "topicIds": ["g5.science.cells"], "packId": "g5.science", "difficulty": "medium", "questions": 10, "correct": 9, "score": 90 }
+        ]
+      },
+      "z9y8x7w6": { "stars": 5, "streakDays": 1, "lastDay": "2026-11-01", "daily": { "2026-11-01": 3 }, "sessions": 1, "topics": {}, "mistakes": [] },
+      "q1w2e3r4": {
+        "stars": 12, "streakDays": 2, "lastDay": "2026-11-15", "daily": { "2026-11-14": 4, "2026-11-15": 6 }, "sessions": 3,
+        "topics": { "g2.math.addition": { "level": 1, "runCorrect": 2, "runWrong": 0, "attempts": 10, "firstTry": 8, "secondTry": 1, "byLevel": [8, 0, 0], "lastAt": 1763200000000 } },
+        "mistakes": [{ "at": 1763200000000, "topicId": "g2.math.addition", "prompt": "7 + 5 = ?", "given": "11", "correct": "12" }],
+        "exams": []
+      }
+    }
+  },
+  "expect": {
+    "דנה": { "stars": 130, "sessions": 9, "streakDays": 4, "lastDay": "2026-11-14", "mistakes": 2, "exams": 2, "topics": 3, "attempts": 42 },
+    "נועם": { "stars": 5, "sessions": 1, "streakDays": 1, "lastDay": "2026-11-01", "mistakes": 0, "exams": 0, "topics": 0, "attempts": 0 },
+    "מאיה": { "stars": 12, "sessions": 3, "streakDays": 2, "lastDay": "2026-11-15", "mistakes": 1, "exams": 0, "topics": 1, "attempts": 10 }
+  }
+}

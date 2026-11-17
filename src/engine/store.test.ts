@@ -158,4 +158,53 @@ describe('loading old data from storage', () => {
     expect(local.map.get(BACKUP_V1_KEY)).toBe(raw);
     expect(local.map.get(BACKUP_V2_KEY)).toBe(raw);
   });
+  it('never writes over data saved by a newer version of the app', async () => {
+    const newer = JSON.stringify({ version: 4, somethingNew: true });
+    const local = fakeStorage({ 'limud-app-v1': newer });
+    vi.stubGlobal('localStorage', local);
+    const store = await import('./store');
+    expect(store.isNewerData()).toBe(true);
+    store.actions.addProfile({ name: 'x', avatar: '🦊', grade: 5 });
+    store.actions.setSound(false);
+    expect(local.map.get('limud-app-v1')).toBe(newer);
+  });
+
+  it('stops writing when another tab upgrades the data, and takes another tab’s saves', async () => {
+    const local = fakeStorage({ 'limud-app-v1': JSON.stringify(V2) });
+    let onStorage: ((e: { key: string; newValue: string | null }) => void) | undefined;
+    vi.stubGlobal('localStorage', local);
+    vi.stubGlobal('addEventListener', (type: string, fn: typeof onStorage) => {
+      if (type === 'storage') onStorage = fn;
+    });
+    const store = await import('./store');
+    expect(store.isNewerData()).toBe(false);
+
+    // another tab of the same version adds a child: this tab takes it, so its next save keeps it
+    const other = { ...store.getData(), profiles: [...store.getData().profiles, { ...store.getData().profiles[0], id: '44444444-4444-4444-8444-444444444444', name: 'אחר' }] };
+    onStorage!({ key: 'limud-app-v1', newValue: JSON.stringify(other) });
+    store.actions.setSound(true);
+    expect(JSON.parse(local.map.get('limud-app-v1')!).profiles.map((p: { name: string }) => p.name)).toContain('אחר');
+
+    // another tab upgrades to a newer version: this tab stops writing
+    const newer = JSON.stringify({ version: 4 });
+    local.map.set('limud-app-v1', newer);
+    store.actions.setSound(false);
+    expect(store.isNewerData()).toBe(true);
+    expect(local.map.get('limud-app-v1')).toBe(newer);
+  });
+
+  it('repairs version-3 data that older app code wrote into, and saves the repair', async () => {
+    const v3 = { version: 3, deviceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', profiles: [{ id: 'k9x8', name: 'יואב', avatar: '🐯', createdAt: 5, grade: 2 }], progress: { k9x8: { stars: 4, streakDays: 1, lastDay: '2026-11-16', daily: { '2026-11-16': 4 }, sessions: 1, topics: {}, mistakes: [{ at: 1, topicId: 'g2.math.addition', prompt: 'p', given: 'g', correct: 'c' }] } }, deleted: {}, sound: true, sync: { outbox: [] } };
+    const local = fakeStorage({ 'limud-app-v1': JSON.stringify(v3) });
+    const session = fakeStorage({ pid: 'k9x8' });
+    vi.stubGlobal('localStorage', local);
+    vi.stubGlobal('sessionStorage', session);
+    const store = await import('./store');
+    const saved = JSON.parse(local.map.get('limud-app-v1')!);
+    const id = saved.profiles[0].id;
+    expect(isUuid(id)).toBe(true);
+    expect(session.map.get('pid')).toBe(id);
+    expect(isUuid(saved.progress[id].mistakes[0].id)).toBe(true);
+    expect(store.childProgress(store.getData(), id).stars).toBe(4);
+  });
 });

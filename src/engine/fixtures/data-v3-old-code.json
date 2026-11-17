@@ -1,0 +1,33 @@
+{
+  "about": "Version-3 data that the version-2 app (an old tab, or the old app cached on an offline phone) wrote into after the upgrade: a child added with a short id and the old shape, mistakes and a test without ids, and old-style totals on a version-3 child.",
+  "data": {
+    "version": 3,
+    "deviceId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "profiles": [
+      { "id": "11111111-1111-4111-8111-111111111111", "name": "דנה", "avatar": "🦊", "createdAt": 1700000000000, "updatedAt": 1763000000000, "grade": 5, "enrollment": {} },
+      { "id": "k9x8", "name": "יואב", "avatar": "🐯", "createdAt": 1763300000000, "grade": 2 }
+    ],
+    "progress": {
+      "11111111-1111-4111-8111-111111111111": {
+        "byDevice": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "stars": 20, "sessions": 2, "daily": { "2026-11-16": 6 } } },
+        "stars": null,
+        "streakDays": 1,
+        "lastDay": "2026-11-16",
+        "topics": { "g5.math.average": { "level": 1, "runCorrect": 0, "runWrong": 0, "attempts": 6, "firstTry": 4, "secondTry": 0, "byLevel": [4, 0, 0], "lastAt": 1763300000000 } },
+        "mistakes": [
+          { "at": 1763300000002, "topicId": "g5.math.average", "prompt": "a", "given": "1", "correct": "2" },
+          { "at": 1763300000001, "topicId": "g5.math.average", "prompt": "b", "given": "1", "correct": "3" },
+          { "id": "00000000-0000-4000-8000-000000000001", "at": 1763100000000, "topicId": "g5.math.average", "prompt": "c", "given": "3", "correct": "4" }
+        ],
+        "exams": [{ "at": 1763300000003, "topicIds": ["g5.math.average"], "packId": "g5.math", "difficulty": "easy", "questions": 5, "correct": 5, "score": 100 }]
+      },
+      "k9x8": { "stars": 4, "streakDays": 1, "lastDay": "2026-11-16", "daily": { "2026-11-16": 4 }, "sessions": 1, "topics": {}, "mistakes": [] }
+    },
+    "sound": true,
+    "sync": { "outbox": [] }
+  },
+  "expect": {
+    "דנה": { "stars": 20, "sessions": 2, "streakDays": 1, "lastDay": "2026-11-16", "mistakes": 3, "exams": 1, "topics": 1, "attempts": 6 },
+    "יואב": { "stars": 4, "sessions": 1, "streakDays": 1, "lastDay": "2026-11-16", "mistakes": 0, "exams": 0, "topics": 0, "attempts": 0 }
+  }
+}

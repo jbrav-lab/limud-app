@@ -1,0 +1,31 @@
+{
+  "about": "Stored data as the first app version wrote it (grade-5 math only, short ids, no pack prefix).",
+  "data": {
+    "version": 1,
+    "parentPin": "1234",
+    "sound": true,
+    "profiles": [
+      { "id": "kid1", "name": "דנה", "avatar": "🦊", "createdAt": 1700000000000, "theme": "darkfocus" },
+      { "id": "kid2", "name": "נועם", "avatar": "🐢", "createdAt": 1700000100000 }
+    ],
+    "progress": {
+      "kid1": {
+        "stars": 42, "streakDays": 3, "lastDay": "2026-09-12", "daily": { "2026-09-11": 7, "2026-09-12": 20 }, "sessions": 5,
+        "topics": {
+          "fraction-meaning": { "level": 2, "runCorrect": 1, "runWrong": 0, "attempts": 12, "firstTry": 9, "secondTry": 2, "byLevel": [5, 4, 0], "lastAt": 1757600000000 },
+          "average": { "level": 1, "runCorrect": 0, "runWrong": 1, "attempts": 3, "firstTry": 1, "secondTry": 0, "byLevel": [1, 0, 0], "lastAt": 1757650000000 }
+        },
+        "mistakes": [
+          { "at": 1757650000000, "topicId": "average", "prompt": "מהו הממוצע של 4 ו-6?", "given": "4", "correct": "5" },
+          { "at": 1757600000000, "topicId": "fraction-meaning", "prompt": "איזה חלק צבוע?", "expression": "1/4", "given": "1/3", "correct": "1/4" }
+        ],
+        "exams": [{ "at": 1757660000000, "topicIds": ["fraction-meaning", "average"], "difficulty": "easy", "questions": 6, "correct": 4, "score": 67 }]
+      },
+      "kid2": { "stars": 0, "streakDays": 0, "lastDay": "", "daily": {}, "sessions": 0, "topics": {}, "mistakes": [] }
+    }
+  },
+  "expect": {
+    "דנה": { "stars": 42, "sessions": 5, "streakDays": 3, "lastDay": "2026-09-12", "mistakes": 2, "exams": 1, "topics": 2, "attempts": 15 },
+    "נועם": { "stars": 0, "sessions": 0, "streakDays": 0, "lastDay": "", "mistakes": 0, "exams": 0, "topics": 0, "attempts": 0 }
+  }
+}

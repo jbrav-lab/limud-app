@@ -87,11 +87,39 @@ Decided 2026-11-15. A dump of the database must not reveal which parent's email 
 
 **Not covered:** someone holding both the dump and the key (control of the server or the Supabase account); guessing from outside knowledge while there are very few families; Supabase request logs and email-service logs, which are outside the database.
 
+## Devices: shared, moved, lost (owner, 2026-11-17)
+Requirements for Stages 3, 4 and 6 ([go-live-plan.md](go-live-plan.md)).
+
+**One device, several children, a parent managing on it** (for example one tablet for three children):
+- A device may practise as several children (`device_children`). Counters are kept per child per device, so nothing is counted twice.
+- **Two sign-ins side by side.** The device's anonymous sign-in (permanent, it holds the pairing) and a parent's Google sign-in (the parent area only) are kept separately, so a parent signing in on the family tablet never unpairs it.
+- **A parent's session on a shared device is guarded.** The per-parent PIN is checked on the server, with an attempt limit; after 5 wrong tries the parent must sign in with Google again. Deleting, approving a deletion, inviting and handing over the primary role always need a recent Google sign-in, never the PIN alone. A "shared device" switch ends the parent session when the parent area is closed.
+- A child can open a sibling's profile on the family tablet: accepted (the family's own device).
+
+**Moving to another device** (tablet → phone, phone → new phone):
+- Today: a backup file. A version-3 file merges, so moving in steps, or still using the old device for a while, never loses or double-counts anything. The file never carries the device id.
+- With Family View: the new device pairs with a one-time code and pulls everything; no file.
+- **Safari on iPhone and iPad** may clear a web app's storage after about 7 days without a visit, unless the app is on the home screen; and the home-screen app keeps its data apart from Safari's. Built (Stage 2): the app asks the browser for persistent storage, and the parent area on an iPhone or iPad not running from the home screen says how to add it, and to move the data with a backup.
+- **A whole-phone restore** (iCloud, Google) can copy the app's storage, device id and anonymous sign-in included, to the new phone. With sync, two phones would then share one identity, and the server's grow-only counters would silently drop the second phone's progress. Stage 4: when the server refuses a lower counter from a device, the device treats itself as a copy, makes a new device id and asks to be paired again; parents see both devices in the list.
+- After a move, the device list shows each device's last sync; removing a device asks whether to wipe it.
+
+**A lost or stolen device:**
+- "Report lost" in the parent area (any parent): revokes the device (its sign-in stops working; it is wiped if it ever syncs again), signs out any parent session that was on it (Supabase global sign-out for that parent; short token lifetime), and writes an audit entry. If a parent session was on the device, it is handled as a possible incident ([security file](security-privacy.md) §15).
+- A device that never goes online again keeps its local data (nicknames, progress, mistakes): local data isn't encrypted (accepted risk). Keeping data minimal (nicknames, no full names) limits it; the "report lost" screen says plainly what stays on the device.
+- Answers not yet synced on a lost device are lost: accepted.
+- A device that is found again is paired again with a new code; its local data merges back without double counting.
+- Taking one child off a shared device erases that child's data on it at the next sync; other children stay.
+
+## Upgrades never lose progress
+- **On the device (built, Stage 2):** the storage key never changes; each upgrade keeps an untouched copy of the old data; `src/engine/fixtures/` holds data as every released version wrote it, and `upgrade.test.ts` checks every child's totals through the upgrade, a backup and a restore (a new data version can't ship without its own fixture). The upgrade also repairs data that an older copy of the app wrote into newer data, and an older copy that finds newer data never writes (it asks for a reload). Two tabs: a tab takes the other's saves before writing its own.
+- **On the server (Stage 4 onwards):** migrations only add (a column is removed only in a later release, after no code uses it); each new migration is tested in CI against data written by the previous schema; a `pg_dump` before every database change.
+- **Sync:** each device sends its data version; the server refuses writes from versions too old to understand, and the app asks for an update instead of sending partial data.
+
 ## Prepared now, for later (no UI in phase 1)
 | In the data now | Makes this possible later |
 |---|---|
 | Stable ids, timestamps and per-device counters (data version 3) | Any new device or role syncs without a data migration |
-| A roles table (admin, primary, parent) | Adding *teacher* and *principal* is one more role |
+| A roles table (admin, primary, parent) | Teachers and principals: [roles-design.md](roles-design.md) (their own membership and permissions, access only through a parent's class link) |
 | Optional, empty **enrollment** per child: school, grade, class, school year | Joining a class is filling in a record |
 | A **consent** record per family for sharing anonymous results, **off** by default | Sharing is opt-in and never retroactive |
 | Tests have an **owner scope** ("family" now) | A teacher's grade test is the same object with another scope |

@@ -122,6 +122,8 @@ export interface AppData {
 
 // The storage key stays the same across data versions: progress is migrated in place.
 const KEY = 'limud-app-v1';
+/** The data version this code reads and writes. */
+export const DATA_VERSION = 3;
 export const BACKUP_V1_KEY = 'limud-app-backup-before-v2';
 export const BACKUP_V2_KEY = 'limud-app-backup-before-v3';
 
@@ -154,8 +156,15 @@ function v1to2(d: any) {
   );
 }
 
-/** Version 2 → 3. Returns the map of old profile ids to their new UUIDs. */
-function v2to3(d: any): Record<string, string> {
+const withId = (r: any) => (isUuid(r.id) ? r : { ...r, id: uuid() });
+
+/**
+ * Bring profiles and children to the version-3 shape. Returns the map of old profile ids to their new UUIDs.
+ * Safe on any mix: version-2 data, and version-3 data that an older copy of the app (a tab left open, or
+ * the old app cached on a phone that was offline) wrote into after the upgrade. Each child is converted
+ * only if it still has the version-2 shape; records without an id get one; data already in shape is unchanged.
+ */
+function toV3(d: any): Record<string, string> {
   const idMap: Record<string, string> = {};
   d.profiles = (d.profiles ?? []).map((p: any) => {
     const id = isUuid(p.id) ? p.id : uuid();
@@ -166,16 +175,24 @@ function v2to3(d: any): Record<string, string> {
   for (const [pid, c] of Object.entries(d.progress ?? {})) {
     const child = c as any;
     const id = idMap[pid] ?? pid;
+    const topics = Object.fromEntries(
+      Object.entries(child.topics ?? {}).map(([tid, tp]: [string, any]) => [tid, { ...tp, updatedAt: tp.updatedAt ?? tp.lastAt ?? 0 }]),
+    );
+    const mistakes = (child.mistakes ?? []).map(withId);
+    if (child.byDevice && typeof child.byDevice === 'object') {
+      // Version 3. Fields that only version 2 had (stars, daily …, written by older code) are dropped.
+      progress[id] = {
+        byDevice: child.byDevice,
+        topics,
+        mistakes,
+        ...(child.exams ? { exams: child.exams.map(withId) } : {}),
+        ...(typeof child.resetAt === 'number' ? { resetAt: child.resetAt } : {}),
+      };
+      continue;
+    }
     const row: DeviceCounters = { stars: child.stars ?? 0, sessions: child.sessions ?? 0, daily: { ...(child.daily ?? {}) } };
     if (child.streakDays > 0 && child.lastDay) row.streakSeed = { lastDay: child.lastDay, days: child.streakDays };
-    progress[id] = {
-      byDevice: { [d.deviceId]: row },
-      topics: Object.fromEntries(
-        Object.entries(child.topics ?? {}).map(([tid, tp]: [string, any]) => [tid, { ...tp, updatedAt: tp.updatedAt ?? tp.lastAt ?? 0 }]),
-      ),
-      mistakes: (child.mistakes ?? []).map((m: any) => ({ ...m, id: isUuid(m.id) ? m.id : uuid() })),
-      exams: (child.exams ?? []).map((e: any) => ({ ...e, id: isUuid(e.id) ? e.id : uuid() })),
-    };
+    progress[id] = { byDevice: { [d.deviceId]: row }, topics, mistakes, exams: (child.exams ?? []).map(withId) };
   }
   d.progress = progress;
   return idMap;
@@ -191,7 +208,7 @@ export function migrateWithIds(raw: any): { data: AppData; idMap: Record<string,
   if (!isUuid(d.deviceId)) d.deviceId = uuid();
   if (from < 2) v1to2(d);
   d.profiles = (d.profiles ?? []).map((p: Profile) => ({ ...p, grade: p.grade ?? 5 }));
-  const idMap = from < 3 ? v2to3(d) : {};
+  const idMap = toV3(d);
   const data: AppData = {
     version: 3,
     deviceId: d.deviceId,
@@ -232,12 +249,25 @@ function followIds(idMap: Record<string, string>) {
   }
 }
 
+/**
+ * True when the stored data was written by a newer version of the app than this code (an old tab, or an
+ * old cached copy of the app). This code then never writes, so it can't overwrite newer data, and the app
+ * asks for a reload (see NewerDataScreen).
+ */
+let newerData = false;
+export const isNewerData = () => newerData;
+const storedVersion = (raw: string | null) => Number(raw?.match(/"version":\s*(\d+)/)?.[1] ?? 0);
+
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       const from = parsed?.version ?? 1;
+      if (from > DATA_VERSION) {
+        newerData = true;
+        return empty();
+      }
       if (from < 3) {
         // keep an untouched copy of the old data, just in case
         if (from < 2) localStorage.setItem(BACKUP_V1_KEY, raw);
@@ -247,8 +277,12 @@ function load(): AppData {
         followIds(idMap);
         return m;
       }
-      const m = migrate(parsed);
-      if (m.deviceId !== parsed.deviceId) localStorage.setItem(KEY, JSON.stringify(m));
+      const { data: m, idMap } = migrateWithIds(parsed);
+      const out = JSON.stringify(m);
+      if (out !== raw) {
+        localStorage.setItem(KEY, out); // repaired (a new device id, or records written by older code)
+        followIds(idMap);
+      }
       return m;
     }
   } catch {
@@ -261,10 +295,47 @@ let data: AppData = load();
 const listeners = new Set<() => void>();
 
 function save() {
+  if (newerData) return;
   try {
+    // Another tab may have upgraded the data since this one loaded it.
+    if (storedVersion(localStorage.getItem(KEY)) > DATA_VERSION) {
+      newerData = true;
+      listeners.forEach((l) => l());
+      return;
+    }
     localStorage.setItem(KEY, JSON.stringify(data));
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * Another tab of this app saved: take its data, so this tab's next save builds on it instead of
+ * overwriting it with an older copy.
+ */
+function onOtherTab(e: StorageEvent) {
+  if (e.key !== KEY || e.newValue === null) return;
+  try {
+    const parsed = JSON.parse(e.newValue);
+    if ((parsed?.version ?? 1) > DATA_VERSION) newerData = true;
+    else data = migrate(parsed);
+  } catch {
+    return;
+  }
+  listeners.forEach((l) => l());
+}
+try {
+  addEventListener('storage', onOtherTab);
+} catch {
+  /* not in a browser (tests) */
+}
+
+/** Ask the browser not to clear this app's storage under storage pressure (Safari, Chrome). */
+export function askPersistentStorage() {
+  try {
+    void navigator.storage?.persist?.().catch(() => undefined);
+  } catch {
+    /* unsupported */
   }
 }
 
@@ -272,6 +343,17 @@ function update(fn: (d: AppData) => AppData) {
   data = fn(data);
   save();
   listeners.forEach((l) => l());
+}
+
+/** True while the stored data is newer than this code (render a reload request instead of the app). */
+export function useNewerData(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => newerData,
+  );
 }
 
 export function useData(): AppData {

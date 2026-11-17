@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
+import { iosNotInstalled } from '../engine/device';
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
@@ -353,6 +354,11 @@ export function Parent({ onBack }: { onBack: () => void }) {
           <div className="card">
             <h3>גיבוי</h3>
             <p className="muted">ההתקדמות נשמרת רק במכשיר הזה. כדאי לשמור גיבוי מדי פעם.</p>
+            {iosNotInstalled() && (
+              <p className="note">
+                באייפון ובאייפד, Safari עלול למחוק את ההתקדמות אם האפליקציה לא נפתחה כשבוע. כדי למנוע זאת, הוסיפו אותה למסך הבית: כפתור השיתוף ← „הוספה למסך הבית”. האפליקציה שעל מסך הבית שומרת את הנתונים בנפרד: שמרו גיבוי כאן קודם, ושחזרו אותו שם.
+              </p>
+            )}
             <div className="row">
               <button className="btn ghost" onClick={exportData}>
                 ⬇️ שמירת גיבוי
