@@ -8,11 +8,14 @@ const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k)
  * ((a ∪ b) ∪ c = a ∪ (b ∪ c)), so devices can merge in any order, any number of times, and agree.
  * Ties are broken by a fixed order on the values themselves, never by argument position.
  *
- * Not handled yet: deletes (a deleted child or a progress reset comes back from another device).
- * Those need tombstones, which arrive with the server (plan §4, last row).
+ * Deletes are tombstones, so they survive a merge:
+ * - a deleted child is listed in `deleted` (id → time); a merge drops that child everywhere;
+ * - a progress reset sets the child's `resetAt`; a merge keeps only what happened after the newest reset.
  */
 
-export const MAX_MERGED_MISTAKES = 200;
+/** How many mistakes and tests a device keeps per child (the server keeps 200 mistakes). */
+export const MAX_MISTAKES = 60;
+export const MAX_EXAMS = 50;
 
 /** A fixed order on any two JSON values, used only to break ties. */
 const key = (x: unknown) => JSON.stringify(x, (_k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? sortKeys(v) : v));
@@ -89,28 +92,50 @@ function unionRecords<T extends { id: string; at: number }>(a: T[], b: T[], max 
     .slice(0, max);
 }
 
-export const mergeMistakes = (a: Mistake[], b: Mistake[]) => unionRecords(a, b, MAX_MERGED_MISTAKES);
-export const mergeExams = (a: ExamRecord[], b: ExamRecord[]) => unionRecords(a, b);
+export const mergeMistakes = (a: Mistake[], b: Mistake[]) => unionRecords(a, b, MAX_MISTAKES);
+export const mergeExams = (a: ExamRecord[], b: ExamRecord[]) => unionRecords(a, b, MAX_EXAMS);
 
-/** One child's progress from two devices. */
+/**
+ * One child's progress from two devices.
+ *
+ * Resets: the newest `resetAt` wins. A copy that hasn't seen that reset loses its counters and topic
+ * progress (they mix activity from before the reset with activity after it); its mistakes and tests
+ * from after the reset are kept. With the same reset (or none) on both sides, everything merges.
+ */
 export function mergeChild(a: StoredChild, b: StoredChild): StoredChild {
+  const ra = a.resetAt ?? 0;
+  const rb = b.resetAt ?? 0;
+  const resetAt = Math.max(ra, rb);
+  const after = <T extends { at: number }>(xs: T[]) => (resetAt ? xs.filter((x) => x.at > resetAt) : xs);
+  const counted = ra === rb ? [a, b] : [ra > rb ? a : b];
+  const [x, y] = [counted[0], counted[counted.length - 1]];
   return {
-    byDevice: unionBy(a.byDevice, b.byDevice, mergeDeviceRow),
-    topics: unionBy(a.topics, b.topics, mergeTopic),
-    mistakes: mergeMistakes(a.mistakes, b.mistakes),
-    ...(a.exams || b.exams ? { exams: mergeExams(a.exams ?? [], b.exams ?? []) } : {}),
+    byDevice: unionBy(x.byDevice, y.byDevice, mergeDeviceRow),
+    topics: unionBy(x.topics, y.topics, mergeTopic),
+    mistakes: after(mergeMistakes(after(a.mistakes), after(b.mistakes))),
+    ...(a.exams || b.exams ? { exams: after(mergeExams(after(a.exams ?? []), after(b.exams ?? []))) } : {}),
+    ...(resetAt ? { resetAt } : {}),
   };
 }
 
-/** The family's shared data (profiles and progress) from two documents. */
-export function mergeFamily(a: Pick<AppData, 'profiles' | 'progress'>, b: Pick<AppData, 'profiles' | 'progress'>) {
-  return { profiles: mergeProfiles(a.profiles, b.profiles), progress: unionBy(a.progress, b.progress, mergeChild) };
+type Family = Pick<AppData, 'profiles' | 'progress' | 'deleted'>;
+
+/** The family's shared data (profiles, progress and deletions) from two documents. */
+export function mergeFamily(a: Family, b: Family): Family {
+  const deleted = unionBy(a.deleted ?? {}, b.deleted ?? {}, Math.max);
+  const progress = unionBy(a.progress, b.progress, mergeChild);
+  for (const id of Object.keys(deleted)) delete progress[id];
+  return {
+    profiles: mergeProfiles(a.profiles, b.profiles).filter((p) => !own(deleted, p.id)),
+    progress,
+    deleted,
+  };
 }
 
 /**
  * Merge another device's document into this device's. Device-local settings (device id, PIN, sound,
  * sync state) stay as they are on this device.
  */
-export function mergeInto(local: AppData, remote: Pick<AppData, 'profiles' | 'progress'>): AppData {
+export function mergeInto(local: AppData, remote: Family): AppData {
   return { ...local, ...mergeFamily(local, remote) };
 }

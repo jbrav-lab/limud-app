@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { MAX_EXAMS, MAX_MISTAKES, mergeInto } from './merge';
 import type { Level } from './types';
 
 export interface Enrollment {
@@ -83,6 +84,8 @@ export interface StoredChild {
   topics: Record<string, TopicProgress>;
   mistakes: Mistake[]; // newest first
   exams?: ExamRecord[]; // newest first
+  /** When a parent last reset this child's progress (ms). A merge keeps only what happened after it. */
+  resetAt?: number;
 }
 
 /** A child's progress as screens read it: stored data plus totals over all devices. */
@@ -111,6 +114,8 @@ export interface AppData {
   parentPin?: string;
   profiles: Profile[];
   progress: Record<string, StoredChild>;
+  /** Children deleted on this or another device: id → time (ms). Kept so a merge never brings them back. */
+  deleted: Record<string, number>;
   sound: boolean;
   sync: SyncState;
 }
@@ -125,7 +130,7 @@ export const uuid = (): string => crypto.randomUUID();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (x: unknown): x is string => typeof x === 'string' && UUID_RE.test(x);
 
-const empty = (): AppData => ({ version: 3, deviceId: uuid(), profiles: [], progress: {}, sound: true, sync: { outbox: [] } });
+const empty = (): AppData => ({ version: 3, deviceId: uuid(), profiles: [], progress: {}, deleted: {}, sound: true, sync: { outbox: [] } });
 
 /** Data version 1 only had grade-5 math, so every old id belongs to the "g5.math" pack. */
 const V1_PACK = 'g5.math';
@@ -193,6 +198,7 @@ export function migrateWithIds(raw: any): { data: AppData; idMap: Record<string,
     ...(d.parentPin !== undefined ? { parentPin: d.parentPin } : {}),
     profiles: d.profiles,
     progress: d.progress ?? {},
+    deleted: d.deleted && typeof d.deleted === 'object' && !Array.isArray(d.deleted) ? d.deleted : {},
     sound: d.sound ?? true,
     sync: d.sync && Array.isArray(d.sync.outbox) ? d.sync : { outbox: [] },
   };
@@ -382,6 +388,24 @@ const touchProfile = (d: AppData, id: string, fields: Partial<Profile>): AppData
   profiles: d.profiles.map((p) => (p.id === id ? { ...p, ...fields, updatedAt: Date.now() } : p)),
 });
 
+/** The pure part of actions.restoreBackup (exported for tests). */
+export function restoreInto(d: AppData, restored: AppData, merge: boolean): AppData {
+  const keep = { deviceId: d.deviceId, sync: d.sync, parentPin: d.parentPin, sound: d.sound };
+  const inFile = new Set(restored.profiles.map((p) => p.id));
+  const deleted = Object.fromEntries(Object.entries(d.deleted).filter(([id]) => !inFile.has(id)));
+  if (!merge) return { ...restored, ...keep, deleted };
+  const progress = { ...d.progress };
+  for (const [id, c] of Object.entries(restored.progress)) {
+    const local = progress[id];
+    if (local && (local.resetAt ?? 0) > (c.resetAt ?? 0)) {
+      const rest = { ...local };
+      delete rest.resetAt;
+      progress[id] = c.resetAt ? { ...rest, resetAt: c.resetAt } : rest;
+    }
+  }
+  return mergeInto({ ...d, progress, deleted }, restored);
+}
+
 export const actions = {
   addProfile(fields: ProfileFields) {
     const id = uuid();
@@ -400,11 +424,11 @@ export const actions = {
     update((d) => {
       const progress = { ...d.progress };
       delete progress[id];
-      return { ...d, profiles: d.profiles.filter((p) => p.id !== id), progress };
+      return { ...d, profiles: d.profiles.filter((p) => p.id !== id), progress, deleted: { ...d.deleted, [id]: Date.now() } };
     });
   },
   resetProgress(id: string) {
-    update((d) => ({ ...d, progress: { ...d.progress, [id]: emptyChild() } }));
+    update((d) => ({ ...d, progress: { ...d.progress, [id]: { ...emptyChild(), resetAt: Date.now() } } }));
   },
   setPin(pin: string) {
     update((d) => ({ ...d, parentPin: pin }));
@@ -413,11 +437,15 @@ export const actions = {
     update((d) => ({ ...d, sound: on }));
   },
   /**
-   * Replace all data with a validated backup (from parseBackup in ./backup).
-   * This device's PIN, device id and sync state stay.
+   * Restore a validated backup (from readBackup in ./backup). This device's PIN, device id, sound
+   * setting and sync state stay.
+   * - merge (a version-3 file): the file is merged into this device's data, so nothing added here since
+   *   the backup is lost. What is in the file comes back: a child in the file that was deleted here
+   *   returns, and a reset made here after the backup no longer hides the file's progress.
+   * - otherwise (an older file, whose child ids can't match this device's): the file replaces the data.
    */
-  restoreBackup(restored: AppData) {
-    update((d) => ({ ...restored, deviceId: d.deviceId, sync: d.sync, parentPin: d.parentPin }));
+  restoreBackup(restored: AppData, merge: boolean) {
+    update((d) => restoreInto(d, restored, merge));
   },
 
   /**
@@ -470,7 +498,7 @@ export const actions = {
       row.stars += stars;
       child.topics = { ...child.topics, [topicId]: tp };
       if (result === 'wrong' && mistake) {
-        child.mistakes = [{ ...mistake, id: uuid(), at: Date.now(), topicId }, ...child.mistakes].slice(0, 60);
+        child.mistakes = [{ ...mistake, id: uuid(), at: Date.now(), topicId }, ...child.mistakes].slice(0, MAX_MISTAKES);
       }
       out = { ...out, stars };
     });
@@ -506,8 +534,8 @@ export const actions = {
       row.daily[day] = (row.daily[day] ?? 0) + answers.length;
       row.stars += stars;
       child.topics = topics;
-      child.mistakes = [...mistakes, ...child.mistakes].slice(0, 60);
-      child.exams = [{ ...exam, id: uuid(), at: now }, ...(child.exams ?? [])].slice(0, 50);
+      child.mistakes = [...mistakes, ...child.mistakes].slice(0, MAX_MISTAKES);
+      child.exams = [{ ...exam, id: uuid(), at: now }, ...(child.exams ?? [])].slice(0, MAX_EXAMS);
     });
     return stars;
   },

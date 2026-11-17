@@ -22,8 +22,10 @@ const DATA: AppData = {
       topics: { 'g4.math.place-value': { level: 2, runCorrect: 1, runWrong: 0, attempts: 9, firstTry: 7, secondTry: 1, byLevel: [5, 2, 0], lastAt: 5, updatedAt: 5 } },
       mistakes: [{ id: 'e0000000-0000-4000-8000-000000000001', at: 7, topicId: 'g4.math.place-value', prompt: 'p', given: 'g', correct: 'c' }],
       exams: [{ id: 'e0000000-0000-4000-8000-000000000002', at: 8, topicIds: ['g4.math.place-value'], packId: 'g4.math', difficulty: 'easy', questions: 5, correct: 4, score: 80 }],
+      resetAt: 4,
     },
   },
+  deleted: { '22222222-2222-4222-8222-222222222222': 3 },
 };
 
 const bad = (text: string) => expect(() => parseBackup(text)).toThrow(BackupError);

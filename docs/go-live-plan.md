@@ -52,10 +52,10 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 - **Way back:** drop what the migrations created (the runbook has the statement) and clear the CLI's migration history.
 
 ## Stage 2: ship data v3 to the phones, sync off
-- First fix the step 1 leftovers:
-  - restore merges instead of replacing;
-  - tombstones for deleted children and progress resets;
-  - the 60/200 mistake cap.
+- First fix the step 1 leftovers (**done 2026-11-17** on `claude/sync-step2`):
+  - restore merges instead of replacing (a version-3 file; an older file still replaces, because its child ids are new);
+  - tombstones: `deleted` (child id → time) and `resetAt` on a child; a merge drops deleted children and keeps only what happened after the newest reset;
+  - the device keeps the newest 60 mistakes and 50 tests, in merges too (the server keeps 200 mistakes).
 - Merge to `main` (this ships).
 - **Gate:** the owner's phone upgrades cleanly, and backup export and restore work.
 - **Way back:** the `limud-app-backup-before-v3` copy on each phone.

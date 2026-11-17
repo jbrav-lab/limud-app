@@ -163,7 +163,10 @@ function child(x: unknown, where: string, v3: boolean) {
       score: int(e.score, w, 100)!,
     };
   });
-  if (v3) return { byDevice: deviceRows(x.byDevice, `${where}.byDevice`), topics, mistakes, exams };
+  if (v3) {
+    const resetAt = x.resetAt === undefined ? undefined : num(x.resetAt, `${where}.resetAt`);
+    return { byDevice: deviceRows(x.byDevice, `${where}.byDevice`), topics, mistakes, exams, ...(resetAt !== undefined ? { resetAt } : {}) };
+  }
   return {
     stars: int(x.stars, `${where}.stars`)!,
     streakDays: int(x.streakDays, `${where}.streakDays`)!,
@@ -189,6 +192,18 @@ function enrollment(x: unknown, where: string) {
   if (grade !== undefined) out.grade = grade;
   if (cls !== undefined) out.class = cls;
   if (year !== undefined) out.year = year;
+  return out;
+}
+
+/** Version 3: children deleted on some device (id → time), so a restore doesn't bring them back. */
+function deletedMap(x: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (x === undefined) return out;
+  if (!isObj(x)) return fail('deleted');
+  for (const k of keysOf(x, 1000, 'deleted')) {
+    if (!isUuid(k)) fail('deleted key');
+    out[k] = num(x[k], 'deleted');
+  }
   return out;
 }
 
@@ -234,12 +249,17 @@ export function sanitizeBackup(raw: unknown): Record<string, unknown> {
     version,
     profiles,
     progress,
+    ...(v3 ? { deleted: deletedMap(raw.deleted) } : {}),
     sound: typeof raw.sound === 'boolean' ? raw.sound : true,
   };
 }
 
-/** Parse and validate a backup file's text, then bring it up to the current data version. */
-export function parseBackup(text: string): AppData {
+/**
+ * Parse and validate a backup file's text, then bring it up to the current data version.
+ * merge: the file is version 3, so its child ids match this family's and it can be merged in.
+ * An older file gets new child ids when it is upgraded, so it can only replace the data.
+ */
+export function readBackup(text: string): { data: AppData; merge: boolean } {
   if (text.length > MAX_BACKUP_BYTES) fail('file too large');
   let parsed: unknown;
   try {
@@ -247,8 +267,11 @@ export function parseBackup(text: string): AppData {
   } catch {
     return fail('not JSON');
   }
-  return migrate(sanitizeBackup(parsed));
+  const clean = sanitizeBackup(parsed);
+  return { data: migrate(clean), merge: clean.version === 3 };
 }
+
+export const parseBackup = (text: string): AppData => readBackup(text).data;
 
 /** The backup file's text. The parent PIN (and this device's id and sync state) are never written to a file. */
 export function backupJson(d: AppData): string {

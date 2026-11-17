@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
-import { MAX_BACKUP_BYTES, backupJson, parseBackup } from '../engine/backup';
+import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
@@ -370,9 +370,12 @@ export function Parent({ onBack }: { onBack: () => void }) {
                   if (!f) return;
                   try {
                     if (f.size > MAX_BACKUP_BYTES) throw new Error('too large');
-                    const restored = parseBackup(await f.text());
-                    if (!confirm('השחזור יחליף את כל הנתונים הנוכחיים. להמשיך?')) return;
-                    actions.restoreBackup(restored);
+                    const { data: restored, merge } = readBackup(await f.text());
+                    const ask = merge
+                      ? 'הנתונים מהגיבוי יתווספו לנתונים שבמכשיר. ילדים שבגיבוי יחזרו, וגם ההתקדמות שלהם. להמשיך?'
+                      : 'זה גיבוי בפורמט ישן: השחזור יחליף את כל הנתונים הנוכחיים. להמשיך?';
+                    if (!confirm(ask)) return;
+                    actions.restoreBackup(restored, merge);
                     setMsg('הגיבוי שוחזר ✓');
                   } catch {
                     setMsg('הקובץ לא תקין');

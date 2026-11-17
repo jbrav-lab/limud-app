@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_MERGED_MISTAKES, mergeFamily, mergeInto, mergeTopic } from './merge';
+import { MAX_MISTAKES, mergeFamily, mergeInto, mergeTopic } from './merge';
 import { childProgress, migrate, type AppData, type Mistake, type StoredChild, type TopicProgress } from './store';
 
 const KID = '11111111-1111-4111-8111-111111111111';
@@ -37,6 +37,7 @@ function device(deviceId: string, child: StoredChild, profile: Partial<AppData['
     sync: { outbox: [] },
     profiles: [{ id: KID, name: 'דנה', avatar: '🦊', createdAt: 1, updatedAt: 1, grade: 5, enrollment: {}, ...profile }],
     progress: { [KID]: child },
+    deleted: {},
   };
 }
 
@@ -76,7 +77,7 @@ const laptop = device(LAPTOP, {
   mistakes: [mistake(4)],
 });
 
-const fam = (d: Pick<AppData, 'profiles' | 'progress'>) => ({ profiles: d.profiles, progress: d.progress });
+const fam = (d: Pick<AppData, 'profiles' | 'progress' | 'deleted'>) => ({ profiles: d.profiles, progress: d.progress, deleted: d.deleted });
 const m = mergeFamily;
 
 describe('merging two devices', () => {
@@ -117,14 +118,15 @@ describe('merging two devices', () => {
     expect(mergeInto(tablet, phone).deviceId).toBe(TABLET);
   });
 
-  it('trims mistakes to the newest 200', () => {
+  it('trims mistakes to the newest 60, as the device keeps them', () => {
     const many = (from: number) => Array.from({ length: 150 }, (_, i) => mistake(from + i));
     const a = device(PHONE, { byDevice: {}, topics: {}, mistakes: many(0) });
     const b = device(TABLET, { byDevice: {}, topics: {}, mistakes: many(150) });
     const out = m(a, b).progress[KID].mistakes;
-    expect(out).toHaveLength(MAX_MERGED_MISTAKES);
+    expect(out).toHaveLength(MAX_MISTAKES);
+    expect(MAX_MISTAKES).toBe(60);
     expect(out[0].at).toBe(299);
-    expect(out[out.length - 1].at).toBe(100);
+    expect(out[out.length - 1].at).toBe(240);
   });
 });
 
@@ -163,5 +165,59 @@ describe('merge laws', () => {
     const again = { ...a, deviceId: TABLET };
     const pid = a.profiles[0].id;
     expect(childProgress(mergeInto(again, a), pid).stars).toBe(9);
+  });
+});
+
+describe('deletions and resets survive a merge (tombstones)', () => {
+  const KID2 = '22222222-2222-4222-8222-222222222222';
+  const second = (d: AppData): AppData => ({
+    ...d,
+    profiles: [...d.profiles, { id: KID2, name: 'נועם', avatar: '🐢', createdAt: 2, updatedAt: 2, grade: 2, enrollment: {} }],
+    progress: { ...d.progress, [KID2]: { byDevice: { [d.deviceId]: { stars: 3, sessions: 1, daily: {} } }, topics: {}, mistakes: [] } },
+  });
+  // The phone deleted the second child; the tablet still has it.
+  const withBoth = second(tablet);
+  const deletedHere: AppData = { ...phone, deleted: { [KID2]: 1000 } };
+
+  it('a deleted child does not come back from a device that still has it', () => {
+    for (const out of [m(deletedHere, withBoth), m(withBoth, deletedHere)]) {
+      expect(out.profiles.map((p) => p.id)).toEqual([KID]);
+      expect(Object.keys(out.progress)).toEqual([KID]);
+      expect(out.deleted).toEqual({ [KID2]: 1000 });
+    }
+  });
+
+  // The phone reset the child's progress at 350; the tablet hasn't seen the reset.
+  const resetPhone = device(PHONE, {
+    byDevice: { [PHONE]: { stars: 2, sessions: 1, daily: { '2026-11-16': 1 } } },
+    topics: { 'g5.math.average': topic({ attempts: 1, firstTry: 1, byLevel: [1, 0, 0], lastAt: 360, updatedAt: 360 }) },
+    mistakes: [mistake(370)],
+    resetAt: 350,
+  });
+  const stale = device(TABLET, {
+    ...tablet.progress[KID],
+    mistakes: [mistake(400), mistake(2)], // one from after the reset, one from before
+    exams: [{ id: 'e0000000-0000-4000-8000-000000000009', at: 380, topicIds: ['g5.math.average'], packId: 'g5.math', difficulty: 'easy', questions: 5, correct: 3, score: 60 }],
+  });
+
+  it('a reset hides the older copy’s counters but keeps its records from after the reset', () => {
+    const c = m(resetPhone, stale).progress[KID];
+    expect(c.resetAt).toBe(350);
+    expect(c.byDevice).toEqual(resetPhone.progress[KID].byDevice);
+    expect(c.topics).toEqual(resetPhone.progress[KID].topics);
+    expect(c.mistakes.map((x) => x.at)).toEqual([400, 370]);
+    expect(c.exams?.map((x) => x.at)).toEqual([380]);
+    expect(childProgress({ ...resetPhone, ...m(resetPhone, stale) }, KID).stars).toBe(2);
+  });
+
+  it('keeps the merge laws with deletions and resets', () => {
+    const docs = [phone, tablet, laptop, deletedHere, withBoth, resetPhone, stale];
+    for (const a of docs) {
+      expect(m(a, a)).toEqual(fam(a));
+      for (const b of docs) {
+        expect(m(a, b)).toEqual(m(b, a));
+        for (const c of docs) expect(m(m(a, b), c)).toEqual(m(a, m(b, c)));
+      }
+    }
   });
 });

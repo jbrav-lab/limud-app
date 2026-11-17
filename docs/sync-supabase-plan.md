@@ -122,7 +122,7 @@ create policy "family members only" on children
 | Daily answers / streak | Per-device per-day rows; the streak is computed from the **union** of active days. |
 | Topic progress | Counters (`attempts`, `first_try`, `by_level`…) take the **max** per field; `level`, `run_*` come from the row with the newest `last_at`. Children rarely practise the same topic on two phones at once, so this is close enough and never loses mastery. |
 | Exam results, mistakes | **Union by id.** Never edited, never conflict. |
-| Deletes (child, reset progress) | Tombstones (`deleted_at`, or a `reset_at` on the child that hides older rows), so they reach every device. |
+| Deletes (child, reset progress) | Tombstones (`deleted_at`, or a `reset_at` on the child that hides older rows), so they reach every device. On the device (built): `AppData.deleted` (id → time) and `StoredChild.resetAt`. The newest reset wins; a copy that hasn't seen it loses its counters and topic progress, and keeps its mistakes and tests from after the reset. |
 
 The merge functions are pure TypeScript (`src/engine/merge.ts`) and get unit tests like `store.test.ts`.
 
