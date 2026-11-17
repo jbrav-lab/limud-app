@@ -11,6 +11,7 @@ Hebrew (RTL) learning app suite for the user's kids (grades 2 and 5; grades 4 an
 
 ## Deploy
 - Live at https://jbrav-lab.github.io/limud-app/ (GitHub Pages, public repo jbrav-lab/limud-app). Pushing to `main` deploys via `.github/workflows/deploy.yml` (npm ci → test → build → Pages).
+- **Moving to Cloudflare** (owner, 2026-11-17; security file §17.3 P0-1): Cloudflare builds `main` itself (build command runs audit, tests, build and `check:dist`). The build writes `dist/_headers` (HTTP security headers, generated from `CSP` and `HEADERS` in `vite.config.ts`; `check:dist` fails if they are missing or weaker). Both hosts serve `main` until every phone has moved; then GitHub Pages keeps only a pointer to the new address.
 - Commit as the repo's configured noreply author (never the user's real email). `git`/`gh` were installed with winget; in a fresh shell refresh PATH from the Machine+User environment first.
 - Never change the site address (repo name or a custom domain) without warning the user: progress lives in the phone's browser storage for that address, so a new address starts every child from zero (backup/restore in the parent area moves it).
 

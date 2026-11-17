@@ -35,6 +35,41 @@ else {
 }
 if (!/<meta name="referrer" content="no-referrer">/.test(html)) fail('index.html: no referrer policy');
 
+// 1b. HTTP headers for the Cloudflare host (dist/_headers): the same CSP as the meta tag, plus framing and
+// transport rules a meta tag can't set.
+let headers = '';
+try {
+  headers = readFileSync(join(DIST, '_headers'), 'utf8').replaceAll('\r\n', '\n');
+} catch {
+  fail('_headers missing (Cloudflare security headers)');
+}
+if (headers) {
+  const block = headers.split(/\n(?=\S)/).find((b) => b.startsWith('/*\n')) ?? '';
+  const values = Object.fromEntries(
+    block
+      .split('\n')
+      .slice(1)
+      .map((line) => line.trim().match(/^([A-Za-z-]+): (.+)$/))
+      .filter(Boolean)
+      .map(([, k, v]) => [k.toLowerCase(), v]),
+  );
+  const get = (name) => values[name.toLowerCase()];
+  const want = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+  };
+  for (const [k, v] of Object.entries(want)) if (get(k) !== v) fail(`_headers: ${k} must be ${v}, found ${get(k) ?? 'nothing'}`);
+  const hsts = Number(get('Strict-Transport-Security')?.match(/max-age=(\d+)/)?.[1] ?? 0);
+  if (hsts < 15552000) fail('_headers: Strict-Transport-Security max-age must be at least 180 days');
+  const perms = get('Permissions-Policy') ?? '';
+  for (const f of ['camera=()', 'microphone=()', 'geolocation=()']) if (!perms.includes(f)) fail(`_headers: Permissions-Policy must include ${f}`);
+  if (csp && get('Content-Security-Policy') !== `${csp}; frame-ancestors 'none'`) {
+    fail("_headers: the CSP header must equal the meta CSP plus frame-ancestors 'none'");
+  }
+}
+
 // 2. No inline scripts in any HTML file (the CSP would block them; this keeps the build honest).
 for (const f of files.filter((f) => f.endsWith('.html'))) {
   for (const tag of readFileSync(f, 'utf8').match(/<script\b[^>]*>/g) ?? []) {

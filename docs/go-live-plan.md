@@ -95,6 +95,13 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 - the security file is updated;
 - the stage is merged with the flag off.
 
+## Hosting move (owner, 2026-11-17)
+The site moves from GitHub Pages (`jbrav-lab.github.io`, an origin shared with the owner's other Pages site) to Cloudflare, before Stage 3 (security file §17.3 P0-1).
+- Cloudflare builds `main` with the same gates as CI (audit, tests, build, `check:dist`); preview deployments are off. No Cloudflare key is stored in GitHub or on the PC.
+- `dist/_headers` sends the security headers (built; checked by `check:dist`). `Cross-Origin-Opener-Policy` is added after the move, because it would cut the handoff below.
+- **Moving the phones:** the last GitHub Pages release shows a "we've moved" button that opens the new address and hands the progress over directly (postMessage to the exact new origin only; the new site merges it like a backup restore). A backup file works too. Then GitHub Pages serves only a link to the new address.
+- After the move: Supabase Site URL and redirect URLs point to the new address; the GitHub Pages address is removed from them.
+
 ## Tooling (no Docker)
 - **Supabase CLI** `supabase@3.2.0` (owner's choice, 2026-11-17), a dev dependency (`npx supabase …`; on this PC `npx.cmd`, because PowerShell blocks `npx.ps1`). In CLI 3, database commands target the local stack by default: always pass `--remote` (`db push --remote`, `db query --remote --read-only`). `link` no longer asks for the database password.
   - **Work without Docker** (they connect straight to the hosted database): `login`, `link`, `db push` (and `--dry-run`), `migration list`, `db lint`, `inspect db …`. Checked 2026-11-16: each went as far as connecting.
