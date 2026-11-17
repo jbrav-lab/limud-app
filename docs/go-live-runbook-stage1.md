@@ -34,6 +34,8 @@ Do this before the database is filled, so nobody can sign up in between.
 4. **Project Settings → Data API:** set **Exposed schemas** to `public` only (remove `graphql_public`). Leave the extra search path as it is.
 
 ## 3. Push the migrations
+**Done 2026-11-17** with CLI 3.2.0: all seven applied; 22 tables, all with RLS; `anon` can run only `keep_alive`. The project also has Supabase's own `public.rls_auto_enable()` event trigger (created with the project; it turns RLS on for new tables), which is not ours and stays. In CLI 3, database commands need `--remote`, or they target a local stack; on this PC use `npx.cmd`.
+
 ```powershell
 npx supabase login
 ```
@@ -42,15 +44,15 @@ Opens the browser to sign in to Supabase; the CLI keeps an access token.
 ```powershell
 npx supabase link --project-ref <project-ref>
 ```
-Asks for the **database password**, which you type. It links this folder to the project; it writes only to `supabase/.temp/`, which git ignores.
+With CLI 3 it uses the login token and doesn't ask for the database password. It links this folder to the project; it writes only to `supabase/.temp/`, which git ignores.
 
 ```powershell
-npx supabase db push --dry-run
+npx supabase db push --remote --dry-run
 ```
 Lists the migrations it would apply: the seven files `20261116000100` to `20261116000700`. Nothing changes yet.
 
 ```powershell
-npx supabase db push
+npx supabase db push --remote
 ```
 Applies them, after asking you to confirm. **From now on these files are frozen.**
 

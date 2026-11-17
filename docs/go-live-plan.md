@@ -86,7 +86,7 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 - the stage is merged with the flag off.
 
 ## Tooling (no Docker)
-- **Supabase CLI** `supabase@2.122.1`, a dev dependency (`npx supabase …`).
+- **Supabase CLI** `supabase@3.2.0` (owner's choice, 2026-11-17), a dev dependency (`npx supabase …`; on this PC `npx.cmd`, because PowerShell blocks `npx.ps1`). In CLI 3, database commands target the local stack by default: always pass `--remote` (`db push --remote`, `db query --remote --read-only`). `link` no longer asks for the database password.
   - **Work without Docker** (they connect straight to the hosted database): `login`, `link`, `db push` (and `--dry-run`), `migration list`, `db lint`, `inspect db …`. Checked 2026-11-16: each went as far as connecting.
   - **Need Docker, not used:** `start`, `db reset`, `db dump` (the CLI runs `pg_dump` in a container; it failed with "docker: command not found"), `db diff`, `db pull`, `test db`.
   - Never run `supabase config push`: it would overwrite the dashboard's auth settings with `supabase/config.toml`, which describes a local stack.
@@ -112,4 +112,4 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
   - the **secret** `SUPABASE_ANON_KEY` (the public anon key).
 
   Without them it skips quietly. GitHub turns scheduled workflows off after 60 days without a commit, so watch for that email.
-- **CI:** `npm ci` now also downloads the Supabase CLI binary (the package's install script). If that ever breaks a deploy, move the CLI out of `devDependencies` and use `npx supabase@2.122.1` instead.
+- **CI:** `npm ci` now also downloads the Supabase CLI binary (the package's install script). If that ever breaks a deploy, move the CLI out of `devDependencies` and use `npx supabase@3.2.0` instead.
