@@ -1,6 +1,15 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { SYNC_ORIGIN } from './scripts/sync-origin.mjs';
+
+/**
+ * Sync is on only when the build has VITE_SYNC_URL (and VITE_SYNC_KEY, the publishable key): the kill
+ * switch. The URL must be the project's own (scripts/sync-origin.mjs); anything else fails the build.
+ */
+const env = loadEnv(process.env.NODE_ENV === 'production' ? 'production' : 'development', process.cwd(), 'VITE_');
+const SYNC_URL = env.VITE_SYNC_URL ?? '';
+if (SYNC_URL && SYNC_URL !== SYNC_ORIGIN) throw new Error(`VITE_SYNC_URL must be ${SYNC_ORIGIN}`);
 
 /**
  * Content-Security-Policy for the built app. It is sent twice: as a <meta> tag (GitHub Pages can't send
@@ -14,7 +23,7 @@ export const CSP = [
   "style-src 'self'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self'",
+  `connect-src 'self'${SYNC_URL ? ` ${SYNC_URL}` : ''}`,
   "manifest-src 'self'",
   "worker-src 'self'",
   "object-src 'none'",

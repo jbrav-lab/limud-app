@@ -195,6 +195,10 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .choice.is-wrong { background: var(--bad-soft); border-color: var(--bad); opacity: 1; }
 
 .hint { background: var(--tip); border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 0; }
+/* Family sync (src/screens/FamilySync.tsx). */
+.card h4 { margin: 16px 0 6px; }
+.pair-code { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.12em; text-align: center; margin: 12px 0; color: var(--accent-text); }
+.card details { margin-top: 16px; }
 /* The address-move notices sit above the screen (src/screens/Move.tsx). */
 .card.move { margin: max(16px, env(safe-area-inset-top)) max(16px, calc((100% - 608px) / 2)) 0; }
 .card.move + .card.move { margin-top: 8px; }

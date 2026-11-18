@@ -5,3 +5,5 @@ dev-dist
 docs/sources/
 # backup files hold children's data and must never be committed
 limud-backup-*.json
+# local build settings (sync address and publishable key for a dev build)
+.env*.local

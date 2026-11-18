@@ -3,6 +3,7 @@
 // Content-Security-Policy, contain no inline scripts or source maps, and ship no private files.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { SYNC_ORIGIN } from './sync-origin.mjs';
 
 const DIST = 'dist';
 const problems = [];
@@ -30,7 +31,7 @@ else {
   }
   if (/'unsafe-inline'|'unsafe-eval'|\*/.test(csp)) fail(`CSP must not allow unsafe-inline, unsafe-eval or wildcards: ${csp}`);
   for (const src of directives['connect-src'] ?? []) {
-    if (src !== "'self'") fail(`CSP connect-src allows ${src}: only 'self' (plus the sync server once it exists) is allowed`);
+    if (src !== "'self'" && src !== SYNC_ORIGIN) fail(`CSP connect-src allows ${src}: only 'self' and the sync server ${SYNC_ORIGIN} are allowed`);
   }
 }
 if (!/<meta name="referrer" content="no-referrer">/.test(html)) fail('index.html: no referrer policy');
@@ -78,9 +79,11 @@ for (const f of files.filter((f) => f.endsWith('.html'))) {
 }
 
 // 3. No third-party addresses. These hosts appear only inside library error messages and XML namespaces, never as requests.
-const TEXT_ONLY_HOSTS = new Set(['www.w3.org', 'react.dev', 'bit.ly']);
+// github.com and localhost: links in @supabase/supabase-js error messages, and its unused default auth address
+// (http://localhost:9999; the client is always given the project's own URL, and connect-src blocks anything else).
+const TEXT_ONLY_HOSTS = new Set(['www.w3.org', 'react.dev', 'bit.ly', 'github.com', 'localhost']);
 // The app's own two addresses during the hosting move (src/engine/move.ts): a link and postMessage targets, never requests.
-const OWN_HOSTS = new Set(['jbrav-lab.github.io', 'limud-app.lomdim.workers.dev']);
+const OWN_HOSTS = new Set(['jbrav-lab.github.io', 'limud-app.lomdim.workers.dev', new URL(SYNC_ORIGIN).host]);
 const hosts = new Map();
 for (const f of files.filter((f) => /\.(js|css|html|webmanifest|json)$/.test(f))) {
   for (const [, host] of readFileSync(f, 'utf8').matchAll(/https?:\/\/([a-zA-Z0-9.-]+)/g)) {

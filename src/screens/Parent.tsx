@@ -3,6 +3,7 @@ import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
 import { iosNotInstalled } from '../engine/device';
+import { FamilySync } from './FamilySync';
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
@@ -350,6 +351,8 @@ export function Parent({ onBack }: { onBack: () => void }) {
               </button>
             </div>
           </div>
+
+          <FamilySync />
 
           <div className="card">
             <h3>גיבוי</h3>
