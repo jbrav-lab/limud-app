@@ -31,7 +31,7 @@ The record is `docs/security-privacy.md` (evidence index, data inventory, OWASP 
 - Every new stored field goes into the data inventory (§3). No gender data or gendered roles. No personal data in logs.
 - Backups: `src/engine/backup.ts`. Export never includes the PIN; restore goes through the sanitizer. A new stored field must be added to the sanitizer and its test, or it will be dropped on restore.
 - Install scripts are off (`.npmrc` `ignore-scripts=true`). After `npm ci` on a PC, the Supabase CLI needs `npm rebuild supabase --ignore-scripts=false` once.
-- CI (`.github/workflows/deploy.yml`): actions pinned to commit SHAs with the tag in a comment; `permissions: {}` at the top, grants per job; `npm audit --audit-level=high` blocks deploys. Node 22 (vitest 5 needs it).
+- CI (`.github/workflows/deploy.yml`): actions pinned to commit SHAs with the tag in a comment; `permissions: {}` at the top, grants per job; `scripts/audit.mjs` blocks deploys on any high or critical advisory, except owner-accepted ones listed there with a reason and an expiry date (never add one without the owner). Cloudflare's build command is `npm ci && npm run verify` (audit, tests, build, `check:dist`). Node 22 (vitest 5 needs it).
 - Rare generator bugs: `GEN_RUNS=20000 npx vitest run -t "topic generators"` before adding or changing a math generator.
 
 ## Design system link
