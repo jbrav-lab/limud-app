@@ -189,6 +189,8 @@ Each cell becomes an automated test (a "can't" is tested as strictly as a "can")
 ---
 
 ## 8. Authentication and the parent PIN
+**Forgotten PIN (built, Stage 3):** reset only after a fresh Google sign-in (`max_age=0`, a token whose Google sign-in is under 10 minutes old) by a parent in a family, and on a paired device a parent of that device's family ([`pinResetAllowed()`](../src/sync/family.ts), tests in `src/sync/family.test.ts`). Without the family server there is no reset: clearing site data (after a backup) is the only way, as before.
+
 **Today:** one PIN of 4 to 6 digits per device (owner, 2026-11-19), stored in plain text in the browser. It is a **child gate, not a security control**: all the data it guards is already on that device. It is never exported in backups, and restoring a backup never changes it (✅ `backup.test.ts`).
 
 **Family View (🟡):**

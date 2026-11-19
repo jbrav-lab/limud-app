@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
 import { iosNotInstalled } from '../engine/device';
 import { FamilySync } from './FamilySync';
+import { syncEnabled } from '../sync/client';
+import { pinResetAllowed, signInWithGoogle, takePinResetReturn } from '../sync/family';
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
@@ -17,12 +19,63 @@ const PIN_MAX = 6;
 const pinOk = (pin: string) => /^\d+$/.test(pin) && pin.length >= PIN_MIN && pin.length <= PIN_MAX;
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, PIN_MAX);
 
+/**
+ * The parent PIN gate. A forgotten PIN is reset by signing in again with Google (owner's choice A,
+ * 2026-11-19): a fresh sign-in, by a parent in a family, and of this device's family if it is paired.
+ * Nobody, the admin included, can reset another parent's PIN.
+ */
 function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
   const data = useData();
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [err, setErr] = useState('');
-  const creating = !data.parentPin;
+  const [reset, setReset] = useState<'no' | 'ask' | 'checking' | 'new'>('no');
+  useEffect(() => {
+    if (!takePinResetReturn()) return;
+    setReset('checking');
+    pinResetAllowed()
+      .then((r) => {
+        if (r === 'ok') return setReset('new');
+        setReset('no');
+        setErr(
+          r === 'stale'
+            ? 'לא הייתה התחברות חדשה עם Google. נסו שוב.'
+            : r === 'no-family'
+              ? 'החשבון הזה לא שייך למשפחה, ולכן אי אפשר לאפס בו את הקוד.'
+              : 'החשבון הזה לא שייך למשפחה של המכשיר הזה.',
+        );
+      })
+      .catch(() => {
+        setReset('no');
+        setErr('הבדיקה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.');
+      });
+  }, []);
+  const creating = !data.parentPin || reset === 'new';
+  if (reset === 'ask' || reset === 'checking') {
+    return (
+      <div className="screen pin">
+        <header className="subbar">
+          <button className="back" onClick={() => setReset('no')} aria-label="חזרה">
+            →
+          </button>
+          <h1>🔒 שכחתי את הקוד</h1>
+        </header>
+        <div className="card form">
+          {reset === 'checking' ? (
+            <p>בודקים את ההתחברות…</p>
+          ) : (
+            <>
+              <p>כדי לבחור קוד חדש, התחברו מחדש עם חשבון Google של הורה במשפחה. Google יבקש את הסיסמה שוב, גם אם כבר התחברתם.</p>
+              <button className="btn primary" onClick={() => signInWithGoogle('pin-reset').catch(() => setErr('ההתחברות נכשלה. נסו שוב.'))}>
+                התחברות עם Google
+              </button>
+              {err && <p className="note">{err}</p>}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen pin">
@@ -33,7 +86,7 @@ function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
         <h1>🔒 אזור הורים</h1>
       </header>
       <div className="card form">
-        <p>{creating ? 'בחרו קוד של 4 עד 6 ספרות. הקוד שומר שהילדים לא ייכנסו לאזור ההורים.' : 'הקלידו את קוד ההורים'}</p>
+        <p>{reset === 'new' ? 'ההתחברות אושרה ✓ בחרו קוד חדש של 4 עד 6 ספרות.' : creating ? 'בחרו קוד של 4 עד 6 ספרות. הקוד שומר שהילדים לא ייכנסו לאזור ההורים.' : 'הקלידו את קוד ההורים'}</p>
         <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={pin} autoFocus onChange={(e) => setPin(digits(e.target.value))} placeholder="••••" />
         {creating && <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={pin2} onChange={(e) => setPin2(digits(e.target.value))} placeholder="שוב" />}
         {err && <p className="note">{err}</p>}
@@ -54,6 +107,17 @@ function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
         >
           {creating ? 'שמירת קוד' : 'כניסה'}
         </button>
+        {!creating && syncEnabled() && (
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setErr('');
+              setReset('ask');
+            }}
+          >
+            שכחתי את הקוד
+          </button>
+        )}
       </div>
     </div>
   );

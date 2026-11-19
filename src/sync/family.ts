@@ -39,30 +39,85 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}, as: 'paren
 
 const AFTER_SIGNIN = 'limud-after-signin';
 
-/** Start Google sign-in. The browser leaves the app and comes back to the parent area. */
-export async function signInWithGoogle() {
+export type SignInPurpose = 'parent' | 'pin-reset';
+
+/**
+ * Start Google sign-in. The browser leaves the app and comes back to the parent area.
+ * For a PIN reset, Google is asked for a fresh sign-in (max_age=0: the password again, even if the
+ * browser is already signed in to Google), so a child can't reset the PIN by tapping a saved account.
+ */
+export async function signInWithGoogle(purpose: SignInPurpose = 'parent') {
   const c = await parentClient();
   try {
-    sessionStorage.setItem(AFTER_SIGNIN, 'parent');
+    sessionStorage.setItem(AFTER_SIGNIN, purpose);
   } catch {
     /* ignore */
   }
   const { error } = await c.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } },
+    options: {
+      redirectTo: location.origin + location.pathname,
+      queryParams: purpose === 'pin-reset' ? { prompt: 'select_account', max_age: '0' } : { prompt: 'select_account' },
+    },
   });
   if (error) explain(error);
 }
 
-/** True once, right after coming back from Google sign-in (the app opens the parent area). */
-export function cameBackFromSignIn(): boolean {
+/** Once, right after coming back from Google sign-in: why the parent signed in (the app opens the parent area). */
+export function cameBackFromSignIn(): SignInPurpose | null {
   try {
-    const v = sessionStorage.getItem(AFTER_SIGNIN) === 'parent';
+    const v = sessionStorage.getItem(AFTER_SIGNIN);
     sessionStorage.removeItem(AFTER_SIGNIN);
-    return v;
+    return v === 'parent' || v === 'pin-reset' ? v : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+let pinResetReturn = false;
+export const markPinResetReturn = () => (pinResetReturn = true);
+/** True once after coming back from a PIN-reset sign-in (the PIN gate then checks it). */
+export function takePinResetReturn(): boolean {
+  const v = pinResetReturn;
+  pinResetReturn = false;
+  return v;
+}
+
+/** How long ago the signed-in parent actually signed in with Google (from the token's `amr` claim). */
+export function signedInSecondsAgo(accessToken: string, now = Date.now()): number | null {
+  try {
+    const part = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(part)) as { amr?: { method: string; timestamp: number }[]; is_anonymous?: boolean };
+    if (claims.is_anonymous) return null;
+    const t = claims.amr?.find((a) => a.method === 'oauth')?.timestamp;
+    return typeof t === 'number' ? Math.round(now / 1000 - t) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A PIN reset counts only for a Google sign-in from the last few minutes. */
+export const PIN_RESET_WINDOW_S = 10 * 60;
+
+/**
+ * May the signed-in parent reset this device's PIN? Only after a fresh Google sign-in, as a parent in a
+ * family, and, if this device is paired, a parent of this device's family (all its children are theirs).
+ */
+export async function pinResetAllowed(): Promise<'ok' | 'stale' | 'no-family' | 'other-family'> {
+  const c = await parentClient();
+  const { data } = await c.auth.getSession();
+  const s = data.session;
+  const ago = s ? signedInSecondsAgo(s.access_token) : null;
+  if (ago === null || ago > PIN_RESET_WINDOW_S || ago < -60) return 'stale';
+  const families = (await rpc<Family[] | null>('my_families')) ?? [];
+  if (!families.length) return 'no-family';
+  const onDevice = (await pairedChildren().catch(() => null)) ?? [];
+  if (onDevice.length) {
+    const mine = new Set<string>();
+    for (const f of families) for (const ch of await familyChildren(f.family_id)) mine.add(ch.id);
+    if (!onDevice.every((k) => mine.has(k.id))) return 'other-family';
+  }
+  return 'ok';
 }
 
 /**
