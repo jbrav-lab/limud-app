@@ -85,3 +85,16 @@ describe('the daily job log and the keep-alive answer', () => {
     await denied(db.as(admin, `select private.daily_maintenance()`));
   });
 });
+
+describe('admin status (shows that admin actions worked)', () => {
+  it('the admin sees their status and when pending primary invites expire; others see only false', async () => {
+    await db.as(admin, `select public.invite_primary('status.check@gmail.com')`);
+    const [a] = await db.as<{ is_admin: boolean; n: number }>(admin, `select is_admin, cardinality(primary_invites_expiring) as n from public.my_admin_status()`);
+    expect(a.is_admin).toBe(true);
+    expect(a.n).toBeGreaterThanOrEqual(1);
+    const other = await db.newParent('not-admin', 'someone.else@gmail.com');
+    expect(await db.as(other, `select is_admin, cardinality(primary_invites_expiring) as n from public.my_admin_status()`)).toEqual([{ is_admin: false, n: 0 }]);
+    const [{ anon }] = await db.owner<{ anon: boolean }>(`select has_function_privilege('anon', 'public.my_admin_status()', 'execute') as anon`);
+    expect(anon).toBe(false);
+  });
+});

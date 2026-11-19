@@ -124,7 +124,7 @@ Supabase (Postgres, sign-in, Row Level Security, Vault) as the sync server, in S
 | Threat | Example | Controls | Status |
 |---|---|---|---|
 | **Spoofing** | Someone signs in as a parent | Invite-only sign-in with Google only (an auth hook refuses accounts without an invite; 🧪 `decisions.test.ts`), no passwords, no email links. MFA deferred (§12) | 🟡 |
-| | A child opens the parent area on their own phone | Today: 4-digit PIN (a child gate). Family View: server data needs the parent's own sign-in; per-parent PIN only re-unlocks (§8) | ✅ / 🟡 |
+| | A child opens the parent area on their own phone | Today: a 4–6 digit PIN (a child gate). Family View: server data needs the parent's own sign-in; per-parent PIN only re-unlocks (§8) | ✅ / 🟡 |
 | **Tampering** | A child edits a parent-made test score, or reads its answers | Tests are scored **on the server**; the child's device never holds the answer key before release (§12) | 🧪 the key is kept apart and the device never reads it, score and note are hidden until release (`access.test.ts`) / 🟡 server scoring |
 | | A malicious backup file | Strict sanitizer, size limit, forbidden keys | ✅ |
 | | A compromised dependency or build action | Lockfile, `npm ci`, audit gate, SHA-pinned actions, Dependabot, SBOM | ✅ |
@@ -189,7 +189,7 @@ Each cell becomes an automated test (a "can't" is tested as strictly as a "can")
 ---
 
 ## 8. Authentication and the parent PIN
-**Today:** one 4-digit PIN per device, stored in plain text in the browser. It is a **child gate, not a security control**: all the data it guards is already on that device. It is never exported in backups, and restoring a backup never changes it (✅ `backup.test.ts`).
+**Today:** one PIN of 4 to 6 digits per device (owner, 2026-11-19), stored in plain text in the browser. It is a **child gate, not a security control**: all the data it guards is already on that device. It is never exported in backups, and restoring a backup never changes it (✅ `backup.test.ts`).
 
 **Family View (🟡):**
 - **Real access is always the parent's own sign-in.** The PIN never replaces it.
@@ -257,7 +257,7 @@ All data is on the family's own devices; the owner holds none.
 | Risk | Why accepted | Revisit when |
 |---|---|---|
 | Device storage is unencrypted | Anyone holding an unlocked phone can open the app anyway; a key on the device would sit next to the data | Data becomes more sensitive, or a native app is built |
-| 4-digit device PIN today | A child gate over data already on the device | Family View launch (replaced by per-parent PINs) |
+| 4–6 digit device PIN today | A child gate over data already on the device | Family View launch (replaced by per-parent PINs) |
 | GitHub Pages can't send HTTP security headers (no HSTS control, no `frame-ancestors`, no Permissions-Policy), and the site shares its origin (`jbrav-lab.github.io`) with the owner's other Pages site, so each can read the other's browser storage (§17) | The meta CSP covers scripts and connections; no third-party scripts | Accepted for local-only data. **Before Stage 3** (sign-in tokens on phones; §17.3 P0-1): move to a host that sends headers (Cloudflare Pages or Netlify) |
 | Low and moderate advisories in build-only tools (`workbox-build` → `deepmerge`, `@rollup/plugin-node-resolve`) | Build-time only, process only this project's own files, no fix released upstream; high and critical are blocked by the CI gate | Each Dependabot update |
 | Practice answers are checked on the device, so a child could tamper with practice stars | Practice needs instant feedback; tests (what a parent reviews) are scored on the server | Never for tests; practice stays as is |

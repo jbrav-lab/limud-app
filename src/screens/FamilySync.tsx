@@ -3,6 +3,9 @@ import { getData, useData } from '../engine/store';
 import { syncEnabled } from '../sync/client';
 import {
   SyncError,
+  adminStatus,
+  inviteMessage,
+  pendingInvites,
   createFamily,
   createPairing,
   familyChildren,
@@ -117,7 +120,8 @@ function FamilyPanel({ email, onSignedOut }: { email: string; onSignedOut: () =>
   const family = families?.[0];
   return (
     <div className="card">
-      <h3>👨‍👩‍👧 {family ? family.name : 'המשפחה בשרת'}</h3>
+      <h3>👨‍👩‍👧 המשפחה שלי</h3>
+      {family && <p className="subtitle">{family.name}</p>}
       <p className="muted">מחובר/ת בתור {email}</p>
       {err && <p className="note">{err}</p>}
       {families && !family && (
@@ -160,17 +164,17 @@ function FamilyDetails({ family }: { family: Family }) {
   const [children, setChildren] = useState<ServerChild[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
-  const [invite, setInvite] = useState('');
-  const [newFamily, setNewFamily] = useState('');
+  const [invites, setInvites] = useState<{ expires_at: string }[]>([]);
   const [label, setLabel] = useState('');
   const [pick, setPick] = useState<string[]>([]);
   const [code, setCode] = useState<string | null>(null);
 
   const reload = () =>
-    Promise.all([familyChildren(family.family_id), familyDevices(family.family_id)])
-      .then(([c, d]) => {
+    Promise.all([familyChildren(family.family_id), familyDevices(family.family_id), pendingInvites(family.family_id)])
+      .then(([c, d, i]) => {
         setChildren(c.filter((x) => !x.deleted_at));
         setDevices(d);
+        setInvites(i);
       })
       .catch((e) => setMsg(say(e)));
   useEffect(() => {
@@ -245,25 +249,106 @@ function FamilyDetails({ family }: { family: Family }) {
       {family.role === 'primary' && (
         <>
           <h4>הזמנת הורה נוסף</h4>
-          <div className="row">
-            <input type="email" dir="ltr" value={invite} placeholder="email@gmail.com" onChange={(e) => setInvite(e.target.value)} />
-            <button className="btn ghost" onClick={() => run(inviteParent(family.family_id, invite), 'ההזמנה נשלחה: ההורה יתחבר עם Google בכתובת הזאת ✓').then(() => setInvite(''))}>
-              הזמנה
-            </button>
-          </div>
+          <InviteBox send={(email) => inviteParent(family.family_id, email)} newFamily={false} />
+          <PendingList list={invites.map((i) => i.expires_at)} />
         </>
       )}
-      <details>
-        <summary>ניהול: הזמנת משפחה חדשה</summary>
-        <p className="muted">רק למנהל האפליקציה. ההזמנה מאפשרת לבעל/ת הכתובת ליצור משפחה חדשה.</p>
-        <div className="row">
-          <input type="email" dir="ltr" value={newFamily} placeholder="email@gmail.com" onChange={(e) => setNewFamily(e.target.value)} />
-          <button className="btn ghost" onClick={() => run(invitePrimary(newFamily), 'ההזמנה נשמרה ✓').then(() => setNewFamily(''))}>
-            הזמנה
-          </button>
-        </div>
-      </details>
+      <AdminBox />
       {msg && <p className="note">{msg}</p>}
+    </>
+  );
+}
+
+const day = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+
+/** Pending invites, so the parent sees that inviting worked. The server keeps no addresses. */
+function PendingList({ list }: { list: string[] }) {
+  if (!list.length) return null;
+  return <p className="muted">ממתינות {list.length === 1 ? 'הזמנה אחת' : `${list.length} הזמנות`} (בתוקף עד {list.map(day).join(', ')}).</p>;
+}
+
+/**
+ * Invite by Google address. The app sends no email (Google-only sign-in, no mail provider): after the
+ * invite is saved, the parent sends the invited person the message shown here (share or copy).
+ */
+function InviteBox({ send, newFamily, onSent }: { send: (email: string) => Promise<unknown>; newFamily: boolean; onSent?: () => void }) {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const text = sent ? inviteMessage(sent, newFamily) : '';
+  return (
+    <>
+      <div className="row">
+        <input type="email" dir="ltr" value={email} placeholder="email@gmail.com" onChange={(e) => setEmail(e.target.value)} />
+        <button
+          className="btn ghost"
+          disabled={!email.trim()}
+          onClick={() =>
+            send(email)
+              .then(() => {
+                setSent(email);
+                setEmail('');
+                setErr(null);
+                setCopied(false);
+                onSent?.();
+              })
+              .catch((e) => setErr(say(e)))
+          }
+        >
+          הזמנה
+        </button>
+      </div>
+      {err && <p className="note">{err}</p>}
+      {sent && (
+        <div className="invite-sent">
+          <p>
+            <strong>ההזמנה נשמרה ✓</strong> האפליקציה לא שולחת אימייל. שלחו את ההודעה הזאת למי שהזמנתם (למשל בוואטסאפ):
+          </p>
+          <p className="invite-text">{text}</p>
+          <div className="row">
+            {typeof navigator.share === 'function' && (
+              <button className="btn primary" onClick={() => navigator.share({ text }).catch(() => undefined)}>
+                שיתוף
+              </button>
+            )}
+            <button
+              className="btn ghost"
+              onClick={() =>
+                navigator.clipboard
+                  ?.writeText(text)
+                  .then(() => setCopied(true))
+                  .catch(() => undefined)
+              }
+            >
+              {copied ? 'הועתק ✓' : 'העתקה'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Admin only (shown when the server says this parent is the admin): invite the primary parent of a new family. */
+function AdminBox() {
+  const [st, setSt] = useState<{ isAdmin: boolean; primaryInvites: string[] } | null>(null);
+  const load = () =>
+    adminStatus()
+      .then(setSt)
+      .catch(() => setSt(null));
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!st?.isAdmin) return null;
+  return (
+    <>
+      <h4>
+        ניהול <span className="badge">מנהל/ת ✓</span>
+      </h4>
+      <p className="muted">הזמנת הורה שיצור משפחה חדשה:</p>
+      <InviteBox send={invitePrimary} newFamily onSent={() => void load()} />
+      <PendingList list={st.primaryInvites} />
     </>
   );
 }

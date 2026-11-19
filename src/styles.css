@@ -199,6 +199,10 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .card h4 { margin: 16px 0 6px; }
 .pair-code { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.12em; text-align: center; margin: 12px 0; color: var(--accent-text); }
 .card details { margin-top: 16px; }
+.card .subtitle { font-size: 1.15rem; font-weight: 700; margin: -4px 0 6px; }
+.badge { font-size: 0.8rem; font-weight: 600; color: var(--on-accent); background: var(--accent); border-radius: var(--radius); padding: 2px 8px; margin-inline-start: 6px; }
+.invite-sent { margin-top: 10px; }
+.invite-text { background: var(--bg); border-radius: var(--radius); padding: 10px; user-select: all; }
 /* The address-move notices sit above the screen (src/screens/Move.tsx). */
 .card.move { margin: max(16px, env(safe-area-inset-top)) max(16px, calc((100% - 608px) / 2)) 0; }
 .card.move + .card.move { margin-top: 8px; }

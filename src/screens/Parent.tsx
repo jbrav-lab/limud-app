@@ -11,6 +11,12 @@ import { Stars } from './Home';
 import { DIFFICULTIES, verbalGrade } from '../engine/exam';
 import { ProfileForm } from './Profiles';
 
+/** The parent PIN: 4 to 6 digits (owner, 2026-11-19). */
+const PIN_MIN = 4;
+const PIN_MAX = 6;
+const pinOk = (pin: string) => /^\d+$/.test(pin) && pin.length >= PIN_MIN && pin.length <= PIN_MAX;
+const digits = (v: string) => v.replace(/\D/g, '').slice(0, PIN_MAX);
+
 function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
   const data = useData();
   const [pin, setPin] = useState('');
@@ -27,13 +33,13 @@ function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
         <h1>🔒 אזור הורים</h1>
       </header>
       <div className="card form">
-        <p>{creating ? 'בחרו קוד בן 4 ספרות. הקוד שומר שהילדים לא ייכנסו לאזור ההורים.' : 'הקלידו את קוד ההורים'}</p>
-        <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={4} value={pin} autoFocus onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} placeholder="••••" />
-        {creating && <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={4} value={pin2} onChange={(e) => setPin2(e.target.value.replace(/\D/g, ''))} placeholder="שוב" />}
+        <p>{creating ? 'בחרו קוד של 4 עד 6 ספרות. הקוד שומר שהילדים לא ייכנסו לאזור ההורים.' : 'הקלידו את קוד ההורים'}</p>
+        <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={pin} autoFocus onChange={(e) => setPin(digits(e.target.value))} placeholder="••••" />
+        {creating && <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={pin2} onChange={(e) => setPin2(digits(e.target.value))} placeholder="שוב" />}
         {err && <p className="note">{err}</p>}
         <button
           className="btn primary"
-          disabled={pin.length !== 4}
+          disabled={!pinOk(pin)}
           onClick={() => {
             if (creating) {
               if (pin !== pin2) return setErr('הקודים לא תואמים');
@@ -231,6 +237,7 @@ export function Parent({ onBack }: { onBack: () => void }) {
   const [sel, setSel] = useState<string | 'settings'>(data.profiles[0]?.id ?? 'settings');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [newPin, setNewPin] = useState('');
+  const [newPin2, setNewPin2] = useState('');
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -336,14 +343,18 @@ export function Parent({ onBack }: { onBack: () => void }) {
 
           <div className="card">
             <h3>החלפת קוד הורים</h3>
+            <p className="muted">4 עד 6 ספרות.</p>
             <div className="row">
-              <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))} placeholder="קוד חדש" />
+              <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={newPin} onChange={(e) => setNewPin(digits(e.target.value))} placeholder="קוד חדש" />
+              <input className="pin-input" dir="ltr" inputMode="numeric" type="password" maxLength={PIN_MAX} value={newPin2} onChange={(e) => setNewPin2(digits(e.target.value))} placeholder="שוב" />
               <button
                 className="btn ghost"
-                disabled={newPin.length !== 4}
+                disabled={!pinOk(newPin)}
                 onClick={() => {
+                  if (newPin !== newPin2) return setMsg('הקודים לא תואמים');
                   actions.setPin(newPin);
                   setNewPin('');
+                  setNewPin2('');
                   setMsg('הקוד עודכן ✓');
                 }}
               >

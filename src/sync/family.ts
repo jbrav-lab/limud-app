@@ -172,3 +172,26 @@ export async function pairedChildren(): Promise<{ id: string; name: string }[] |
   if (!data.session) return null;
   return rpc<{ id: string; name: string }[]>('device_children_list', {}, 'device');
 }
+
+// --- Status (so a parent can see that an action worked) -----------------------------------------
+
+/** Whether the signed-in parent is the app's admin, and when their pending new-family invites expire. */
+export async function adminStatus(): Promise<{ isAdmin: boolean; primaryInvites: string[] }> {
+  const rows = await rpc<{ is_admin: boolean; primary_invites_expiring: string[] }[]>('my_admin_status');
+  return { isAdmin: Boolean(rows?.[0]?.is_admin), primaryInvites: rows?.[0]?.primary_invites_expiring ?? [] };
+}
+
+/** The family's pending parent invites (no addresses: the server keeps only an HMAC). */
+export async function pendingInvites(family: string): Promise<{ expires_at: string }[]> {
+  const c = await parentClient();
+  const { data, error } = await c.from('invites').select('expires_at').eq('family_id', family).gt('expires_at', new Date().toISOString());
+  if (error) explain(error);
+  return (data ?? []) as { expires_at: string }[];
+}
+
+/** The message a parent sends the person they invited (the app sends no email; Google-only sign-in). */
+export function inviteMessage(email: string, newFamily: boolean): string {
+  const where = `${location.origin}${location.pathname}`;
+  const then = newFamily ? 'ואז צרו את המשפחה שלכם.' : 'ותצטרפו למשפחה אוטומטית.';
+  return `הוזמנתם ל„לומדים”. פתחו את ${where} ← 🔒 אזור הורים ← ⚙️ הגדרות ← „התחברות עם Google”, עם החשבון ${email.trim()}, ${then} ההזמנה בתוקף 7 ימים.`;
+}
