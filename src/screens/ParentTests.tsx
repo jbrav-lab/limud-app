@@ -183,12 +183,31 @@ function CreateTest({
   const topics = pack.topics.filter((t) => picked.has(t.id));
   const build = () => setExam(buildExam(topics, mix === 'balanced' ? 'adaptive' : mix, count, mix === 'balanced' ? balancedLevel : levelOf));
 
-  if (exam)
+  if (exam) {
+    const send = () => {
+      setBusy(true);
+      setErr(null);
+      onSend(pack.id, topics.map((t) => t.id), exam).catch((e: Error) => {
+        setErr(e.message);
+        setBusy(false);
+      });
+    };
+    const sendButton = (
+      <button className="btn primary" disabled={busy} onClick={send}>
+        {busy ? 'שולח…' : `שליחה ל${name} ✓`}
+      </button>
+    );
     return (
       <div className="card">
         <h3>
           תצוגה מקדימה: {pack.emoji} {pack.title} · {exam.length} שאלות
         </h3>
+        <div className="not-sent">
+          <p>
+            <b>המבחן עוד לא נשלח.</b> בדקו את השאלות ולחצו על "שליחה ל{name}".
+          </p>
+          {sendButton}
+        </div>
         <p className="muted small-text">כך {name} יראה/תראה את השאלות. התשובות הנכונות מוצגות רק לכם.</p>
         <ol className="review preview-list">
           {exam.map((e, i) => (
@@ -204,22 +223,9 @@ function CreateTest({
             </li>
           ))}
         </ol>
-        {err && <p className="note">{err}</p>}
-        <div className="row">
-          <button
-            className="btn primary"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              setErr(null);
-              onSend(pack.id, topics.map((t) => t.id), exam).catch((e: Error) => {
-                setErr(e.message);
-                setBusy(false);
-              });
-            }}
-          >
-            {busy ? 'שולח…' : `שליחה ל${name} ✓`}
-          </button>
+        <div className="row sticky-actions">
+          {err && <p className="note">{err}</p>}
+          {sendButton}
           <button className="btn ghost" disabled={busy} onClick={build}>
             🔀 שאלות אחרות
           </button>
@@ -229,6 +235,7 @@ function CreateTest({
         </div>
       </div>
     );
+  }
 
   return (
     <div className="card parent-create">
@@ -305,7 +312,7 @@ function CreateTest({
       <input className="range" type="range" min={MIN_QUESTIONS} max={MAX_QUESTIONS} value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label="מספר שאלות" />
 
       <button className="btn primary wide" disabled={!topics.length} onClick={build}>
-        {topics.length ? `יצירת המבחן (${count} שאלות) ▶` : 'בחרו לפחות נושא אחד'}
+        {topics.length ? `תצוגה מקדימה (${count} שאלות) ▶` : 'בחרו לפחות נושא אחד'}
       </button>
     </div>
   );

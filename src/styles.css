@@ -446,4 +446,9 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .big-score { font-size: 1.8rem; color: var(--accent-text); }
 .field textarea { border: 2px solid var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; font: inherit; resize: vertical; }
 .preview-list li { margin-bottom: 12px; }
+/* Parent test preview: say plainly it isn't sent yet, and keep the send button in view. */
+.not-sent { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 12px 14px; border: 2px solid var(--accent-soft); border-radius: var(--radius-sm); }
+.not-sent p { margin: 0; }
+.sticky-actions { position: sticky; bottom: 0; z-index: 2; flex-wrap: wrap; margin: 12px -4px 0; padding: 10px 4px; background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius-sm); }
+.sticky-actions .note { flex-basis: 100%; margin: 0; }
 .review .mmeta .mark { font-weight: 700; }
