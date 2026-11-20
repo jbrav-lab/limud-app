@@ -599,7 +599,7 @@ export const actions = {
    */
   recordExam(
     profileId: string,
-    exam: Omit<ExamRecord, 'id' | 'at'>,
+    exam: Omit<ExamRecord, 'id' | 'at'> & { id?: string },
     answers: { topicId: string; level: Level; correct: boolean; mistake?: Omit<Mistake, 'id' | 'at' | 'topicId'> }[],
   ): number {
     const stars = Math.round(exam.score / 10);
@@ -623,7 +623,7 @@ export const actions = {
       row.stars += stars;
       child.topics = topics;
       child.mistakes = [...mistakes, ...child.mistakes].slice(0, MAX_MISTAKES);
-      child.exams = [{ ...exam, id: uuid(), at: now }, ...(child.exams ?? [])].slice(0, MAX_EXAMS);
+      child.exams = [{ ...exam, id: exam.id ?? uuid(), at: now }, ...(child.exams ?? [])].slice(0, MAX_EXAMS);
     });
     return stars;
   },

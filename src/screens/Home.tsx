@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ParentTestsBanner } from './ChildTests';
 import { actions, childProgress, mastery, topicProgress, useData, type AppData } from '../engine/store';
 import { AvatarGrid } from './Profiles';
 import type { Pack } from '../curricula/types';
@@ -124,6 +125,7 @@ export function Home({
   onSwitch,
   onParent,
   onExam,
+  onTest,
   onSubjects,
 }: {
   pid: string;
@@ -133,6 +135,8 @@ export function Home({
   onSwitch: () => void;
   onParent: () => void;
   onExam: () => void;
+  /** Open a test a parent made (ChildTests.tsx). */
+  onTest: (assignmentId: string) => void;
   /** Back to the subject list (only when the child's grade has more than one subject). */
   onSubjects?: () => void;
 }) {
@@ -156,6 +160,8 @@ export function Home({
           {pack.emoji} {pack.title}
         </h1>
       </div>
+
+      <ParentTestsBanner pid={pid} onOpen={onTest} />
 
       <section className="badges" aria-label="האוסף שלי">
         {bs.map((b) => (

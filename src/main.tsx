@@ -15,6 +15,7 @@ import { parentClient, syncEnabled } from './sync/client';
 import { cameBackFromSignIn, markPinResetReturn, takeSignInError } from './sync/family';
 import { setStartupSignInError } from './screens/FamilySync';
 import { startAutoUpload } from './sync/progress';
+import { startTestSync } from './sync/tests';
 import { Gallery } from './screens/Gallery';
 
 const showGallery = import.meta.env.DEV && location.search.includes('gallery');
@@ -47,4 +48,6 @@ if (purpose) history.replaceState({ s: 'parent' }, '');
 receiveFromOldAddress(() => rerender());
 // A paired child's device uploads its progress (Stage 4); nothing happens on an unpaired device.
 startAutoUpload();
+// …and keeps its parent-made tests current (and sends finished answers).
+startTestSync();
 createRoot(document.getElementById('root')!).render(<StrictMode>{showGallery ? <Gallery /> : <Root />}</StrictMode>);

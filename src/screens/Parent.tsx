@@ -11,6 +11,7 @@ import { pinResetAllowed, signInWithGoogle, takePinResetReturn } from '../sync/f
 import { PACKS, dirClass, gradeLabel, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { WithPacks } from './Subjects';
+import { ParentTestsPanel } from './ParentTests';
 import { Stars } from './Home';
 import { DIFFICULTIES, verbalGrade } from '../engine/exam';
 import { ProfileForm } from './Profiles';
@@ -167,6 +168,7 @@ function ChildTab({ pid, grade, name, allPacks }: { pid: string; grade?: number;
           </button>
         </div>
       )}
+      {remote.state !== 'off' && <ParentTestsPanel childId={pid} grade={grade} name={name} packs={allPacks} levelOf={(id) => c.topics[id]?.level ?? 1} />}
       <ChildReport c={c} grade={grade} allPacks={allPacks} />
     </>
   );

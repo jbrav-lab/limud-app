@@ -439,3 +439,13 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .subject-overview { margin: 4px 0 10px; }
 .subject-focus { margin: 6px 0; }
 .subject-unit h4 { margin: 14px 0 6px; }
+
+/* Parent-made tests (owner, 2026-11-20) */
+.ptest-banner { display: flex; flex-direction: column; gap: 10px; border: 2px solid var(--accent-soft); }
+.ptest-banner .row { gap: 10px; flex-wrap: wrap; }
+.parent-create h4 { margin: 18px 0 8px; }
+.parent-create .seg { flex-wrap: wrap; }
+.big-score { font-size: 1.8rem; color: var(--accent-text); }
+.field textarea { border: 2px solid var(--accent-soft); border-radius: var(--radius-sm); padding: 10px 12px; font: inherit; resize: vertical; }
+.preview-list li { margin-bottom: 12px; }
+.review .mmeta .mark { font-weight: 700; }

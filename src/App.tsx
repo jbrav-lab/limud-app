@@ -10,6 +10,7 @@ import { Profiles } from './screens/Profiles';
 import { Subjects, WithPacks } from './screens/Subjects';
 import { ExamSetup, type ExamConfig } from './screens/ExamSetup';
 import { ExamRun } from './screens/ExamRun';
+import { ParentTestScreen } from './screens/ChildTests';
 
 type Route =
   | { s: 'profiles' }
@@ -19,7 +20,8 @@ type Route =
   | { s: 'practice'; topicIds: string[]; title: string }
   | { s: 'parent' }
   | { s: 'examSetup'; packId?: string }
-  | { s: 'exam'; config: ExamConfig; startedAt: number };
+  | { s: 'exam'; config: ExamConfig; startedAt: number }
+  | { s: 'ptest'; assignmentId: string };
 
 /** Topic/pack ids a route needs. A route saved by an older app version may name ids that no longer exist. */
 function routePackIds(r: Route): string[] | null {
@@ -100,10 +102,13 @@ export default function App() {
   const multiSubject = packsForGrade(profile.grade).length > 1;
   const toProfiles = () => go({ s: 'profiles' }, true);
   const toParent = () => go({ s: 'parent' });
+  const toTest = (assignmentId: string) => go({ s: 'ptest', assignmentId });
 
   switch (route.s) {
     case 'subjects':
-      return <Subjects pid={childId} onPick={(packId) => go({ s: 'home', packId })} onSwitch={toProfiles} onParent={toParent} />;
+      return <Subjects pid={childId} onPick={(packId) => go({ s: 'home', packId })} onSwitch={toProfiles} onParent={toParent} onTest={toTest} />;
+    case 'ptest':
+      return <ParentTestScreen key={route.assignmentId} pid={childId} assignmentId={route.assignmentId} onExit={back} />;
     case 'home':
       return (
         <WithPacks ids={packIds}>
@@ -119,6 +124,7 @@ export default function App() {
               onSwitch={toProfiles}
               onParent={toParent}
               onExam={() => go({ s: 'examSetup', packId: pack.id })}
+              onTest={toTest}
               onSubjects={multiSubject ? back : undefined}
             />
           )}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ParentTestsBanner } from './ChildTests';
 import { gradeLabel, packsForGrade, usePacks } from '../curricula';
 import type { Pack } from '../curricula/types';
 import { mastery, topicProgress, useData } from '../engine/store';
@@ -12,7 +13,19 @@ export function WithPacks({ ids, children }: { ids: string[]; children: (packs: 
 }
 
 /** "מה לומדים היום?": the subjects of the child's grade. */
-export function Subjects({ pid, onPick, onSwitch, onParent }: { pid: string; onPick: (packId: string) => void; onSwitch: () => void; onParent: () => void }) {
+export function Subjects({
+  pid,
+  onPick,
+  onSwitch,
+  onParent,
+  onTest,
+}: {
+  pid: string;
+  onPick: (packId: string) => void;
+  onSwitch: () => void;
+  onParent: () => void;
+  onTest: (assignmentId: string) => void;
+}) {
   const data = useData();
   const profile = data.profiles.find((p) => p.id === pid);
   const infos = packsForGrade(profile?.grade ?? 0);
@@ -24,6 +37,7 @@ export function Subjects({ pid, onPick, onSwitch, onParent }: { pid: string; onP
       <TopBar pid={pid} onSwitch={onSwitch} onParent={onParent} />
       <h1 className="center">מה לומדים היום?</h1>
       <p className="center muted">{gradeLabel(profile.grade)}</p>
+      <ParentTestsBanner pid={pid} onOpen={onTest} />
 
       {infos.length === 0 && (
         <div className="card center">

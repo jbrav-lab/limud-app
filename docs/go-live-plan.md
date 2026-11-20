@@ -80,6 +80,7 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
 ## Stage 5: parent view and in-app notifications
 
 ## Stage 6: parent-made tests, PIN and deletion requests
+- **First version built (owner, 2026-11-20):** a parent creates a test for one child (subject, topics, 5–25 questions, balanced / easy / medium / hard / by the child's level), previews it with answers and sends it; the child's phone shows it, saves answers at once and sends them (offline: later); the parent reviews the scored answers and releases the score with a note; the child then sees the score, the answers and the explanations, and the test counts in their progress. Scoring on the parent's phone (security file §12, amended). Migration `20261120000100_parent_tests.sql`. Not yet: answer overrides, several children or tests at once, "from mistakes", the upcoming-school-test fields, "show results immediately".
 - Server scoring, answer key on release, answer overrides.
 - Per-parent PIN.
 - "Delete my account", leaving a family, and externally verified deletion requests (security file §10). Without an email provider, the requester proves the address by signing in with Google; the auth hook will need to let such a requester in.
