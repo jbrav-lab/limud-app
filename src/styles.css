@@ -405,3 +405,35 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Parent report: collapsible boxes (owner, 2026-11-20). Closed by default; the summary row shows a count. */
+.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary h3 { margin: 0; }
+.fold > summary::after {
+  content: '▾';
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.fold[open] > summary::after { transform: rotate(180deg); }
+.fold-count {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.card .fold.inner {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.fold[open] > summary { margin-bottom: 8px; }
+.subject-overview { margin: 4px 0 10px; }
+.subject-focus { margin: 6px 0; }
+.subject-unit h4 { margin: 14px 0 6px; }

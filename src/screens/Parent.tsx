@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
-import { actions, childProgress, deriveTotals, emptyChild, emptyTopic, mastery, today, useData, type ChildProgress } from '../engine/store';
+import { actions, childProgress, deriveTotals, emptyChild, emptyTopic, mastery, today, useData, type ChildProgress, type TopicProgress } from '../engine/store';
 import { mergeChild } from '../engine/merge';
 import { useRemoteChildren, useRemoteProgress } from '../sync/useRemote';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
@@ -184,11 +184,44 @@ function ChildReport({ c, grade, allPacks }: { c: ChildProgress; grade?: number;
     return { label: d.toLocaleDateString('he-IL', { weekday: 'narrow' }), n: c.daily[today(d)] ?? 0 };
   });
   const maxDay = Math.max(5, ...last7.map((d) => d.n));
-  const weak = tps
-    .filter((x) => x.tp.attempts >= 6 && x.tp.firstTry / x.tp.attempts < 0.6)
-    .sort((a, b) => a.tp.firstTry / a.tp.attempts - b.tp.firstTry / b.tp.attempts)
-    .slice(0, 3);
-  const notStarted = tps.filter((x) => x.tp.attempts === 0);
+  // Per subject: its topics, what was practised, what needs work, and its own recent mistakes (owner, 2026-11-20).
+  const isWeak = (tp: TopicProgress) => tp.attempts >= 6 && tp.firstTry / tp.attempts < 0.6;
+  const rate = (tp: TopicProgress) => tp.firstTry / tp.attempts;
+  const subjects = packs.map((p) => {
+    const items = p.topics.map((t) => ({ t, tp: c.topics[t.id] ?? emptyTopic() }));
+    const ids = new Set(p.topics.map((t) => t.id));
+    return {
+      p,
+      items,
+      attempts: items.reduce((s, x) => s + x.tp.attempts, 0),
+      first: items.reduce((s, x) => s + x.tp.firstTry, 0),
+      practised: items.filter((x) => x.tp.attempts > 0).length,
+      lastAt: Math.max(0, ...items.map((x) => x.tp.lastAt || 0)),
+      weak: items.filter((x) => isWeak(x.tp)).sort((a, b) => rate(a.tp) - rate(b.tp)),
+      notStarted: items.filter((x) => x.tp.attempts === 0),
+      mistakes: c.mistakes.filter((m) => ids.has(m.topicId)),
+    };
+  });
+  const weakCount = subjects.reduce((s, x) => s + x.weak.length, 0);
+  const notStartedCount = subjects.reduce((s, x) => s + x.notStarted.length, 0);
+  const otherMistakes = c.mistakes.filter((m) => !packs.some((p) => p.topics.some((t) => t.id === m.topicId)));
+
+  const mistakeList = (ms: typeof c.mistakes) => (
+    <ul className="mistakes">
+      {ms.slice(0, 20).map((m, i) => (
+        <li key={i} className={dirClass(m.topicId)}>
+          <div className="mmeta">
+            {topicById(m.topicId)?.emoji} {topicById(m.topicId)?.title} · {fmtDate(m.at)}
+          </div>
+          <MathText text={m.prompt} />
+          {m.expression && <Expression text={m.expression} />}
+          <div className="mans">
+            ענה/תה: <span className="bad"><MathText text={m.given} /></span> · נכון: <span className="good"><MathText text={m.correct} /></span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <>
@@ -259,82 +292,142 @@ function ChildReport({ c, grade, allPacks }: { c: ChildProgress; grade?: number;
         )}
       </div>
 
-      {(weak.length > 0 || notStarted.length > 0) && (
-        <div className="card focus">
+      <details className="card fold focus">
+        <summary>
           <h3>🎯 כדאי להתמקד</h3>
-          {weak.map(({ t, tp }) => (
-            <p key={t.id}>
-              {t.emoji} <b>{t.title}</b> – רק {Math.round((tp.firstTry / tp.attempts) * 100)}% נכון בניסיון ראשון
-            </p>
+          <span className="fold-count">{weakCount ? `${weakCount} נושאים` : 'אין כרגע'}</span>
+        </summary>
+        {weakCount === 0 && <p className="muted">אין נושא שתורגל ועדיין קשה. נושאים שעוד לא תורגלו מופיעים ב„עוד לא בוצע”.</p>}
+        {subjects
+          .filter((s) => s.weak.length)
+          .map((s) => (
+            <details key={s.p.id} className="fold inner">
+              <summary>
+                <b>
+                  {s.p.emoji} {s.p.title}
+                </b>
+                <span className="fold-count">{s.weak.length}</span>
+              </summary>
+              {s.weak.map(({ t, tp }) => (
+                <p key={t.id}>
+                  {t.emoji} <b>{t.title}</b> – רק {Math.round(rate(tp) * 100)}% נכון בניסיון ראשון
+                </p>
+              ))}
+            </details>
           ))}
-          {notStarted.length > 0 && <p className="muted">עוד לא תורגלו: {notStarted.map((x) => x.t.title).join(' · ')}</p>}
-        </div>
+      </details>
+
+      {notStartedCount > 0 && (
+        <details className="card fold">
+          <summary>
+            <h3>⏳ עוד לא בוצע</h3>
+            <span className="fold-count">{notStartedCount} נושאים</span>
+          </summary>
+          {subjects
+            .filter((s) => s.notStarted.length)
+            .map((s) => (
+              <details key={s.p.id} className="fold inner">
+                <summary>
+                  <b>
+                    {s.p.emoji} {s.p.title}
+                  </b>
+                  <span className="fold-count">
+                    {s.notStarted.length} מתוך {s.items.length}
+                  </span>
+                </summary>
+                <p className="muted">{s.notStarted.map((x) => x.t.title).join(' · ')}</p>
+              </details>
+            ))}
+        </details>
       )}
 
       {packs.length === 0 && <p className="muted center">עוד אין מקצועות ל{gradeLabel(grade ?? 0)}.</p>}
-      {packs.flatMap((p) => [
-        <h2 key={p.id} className="pack-title">
-          {p.emoji} {p.title} <span className="muted small-text">{gradeLabel(p.grade)}</span>
-        </h2>,
-        ...p.units.map((u) => (
-        <div key={u.id} className="card">
-          <h3 style={{ color: u.color }}>{u.title}</h3>
-          <table className="report">
-            <thead>
-              <tr>
-                <th>נושא</th>
-                <th>שליטה</th>
-                <th>רמה</th>
-                <th>שאלות</th>
-                <th>הצלחה</th>
-                <th>אחרון</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tps
-                .filter((x) => x.t.unit === u.id)
-                .map(({ t, tp }) => {
-                  const pct = tp.attempts ? Math.round(((tp.firstTry + tp.secondTry * 0.5) / tp.attempts) * 100) : null;
-                  return (
-                    <tr key={t.id} className={pct !== null && pct < 60 && tp.attempts >= 6 ? 'weak' : ''}>
-                      <td>
-                        {t.emoji} {t.title}
-                      </td>
-                      <td>
-                        <Stars n={mastery(tp)} />
-                      </td>
-                      <td>{tp.attempts ? tp.level : '—'}</td>
-                      <td>{tp.attempts}</td>
-                      <td>{pct === null ? '—' : `${pct}%`}</td>
-                      <td>{fmtDate(tp.lastAt)}</td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
-        )),
-      ])}
-      <p className="footnote">"הצלחה" = נכון בניסיון ראשון, ונכון אחרי רמז נספר כחצי.</p>
-
-      <div className="card">
-        <h3>טעויות אחרונות</h3>
-        {c.mistakes.length === 0 && <p className="muted">אין עדיין טעויות 🙂</p>}
-        <ul className="mistakes">
-          {c.mistakes.slice(0, 20).map((m, i) => (
-            <li key={i} className={dirClass(m.topicId)}>
-              <div className="mmeta">
-                {topicById(m.topicId)?.emoji} {topicById(m.topicId)?.title} · {fmtDate(m.at)}
-              </div>
-              <MathText text={m.prompt} />
-              {m.expression && <Expression text={m.expression} />}
-              <div className="mans">
-                ענה/תה: <span className="bad"><MathText text={m.given} /></span> · נכון: <span className="good"><MathText text={m.correct} /></span>
-              </div>
-            </li>
+      {subjects.map((s) => (
+        <details key={s.p.id} className="card fold subject">
+          <summary>
+            <h3>
+              {s.p.emoji} {s.p.title} <span className="muted small-text">{gradeLabel(s.p.grade)}</span>
+            </h3>
+            <span className="fold-count">{s.attempts ? `${Math.round((s.first / s.attempts) * 100)}% · ${s.attempts} שאלות` : 'עוד לא תורגל'}</span>
+          </summary>
+          <div className="summary-card subject-overview">
+            <div className="stat">
+              <b>{s.attempts}</b>
+              <span>שאלות</span>
+            </div>
+            <div className="stat">
+              <b>{s.attempts ? Math.round((s.first / s.attempts) * 100) : 0}%</b>
+              <span>נכון בניסיון ראשון</span>
+            </div>
+            <div className="stat">
+              <b>
+                {s.practised}/{s.items.length}
+              </b>
+              <span>נושאים תורגלו</span>
+            </div>
+            <div className="stat">
+              <b>{fmtDate(s.lastAt)}</b>
+              <span>תרגול אחרון</span>
+            </div>
+          </div>
+          {s.weak.length > 0 && <p className="subject-focus">🎯 כדאי להתמקד: {s.weak.map(({ t }) => t.title).join(' · ')}</p>}
+          {s.p.units.map((u) => (
+            <div key={u.id} className="subject-unit">
+              <h4 style={{ color: u.color }}>{u.title}</h4>
+              <table className="report">
+                <thead>
+                  <tr>
+                    <th>נושא</th>
+                    <th>שליטה</th>
+                    <th>רמה</th>
+                    <th>שאלות</th>
+                    <th>הצלחה</th>
+                    <th>אחרון</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.items
+                    .filter((x) => x.t.unit === u.id)
+                    .map(({ t, tp }) => {
+                      const pct = tp.attempts ? Math.round(((tp.firstTry + tp.secondTry * 0.5) / tp.attempts) * 100) : null;
+                      return (
+                        <tr key={t.id} className={pct !== null && pct < 60 && tp.attempts >= 6 ? 'weak' : ''}>
+                          <td>
+                            {t.emoji} {t.title}
+                          </td>
+                          <td>
+                            <Stars n={mastery(tp)} />
+                          </td>
+                          <td>{tp.attempts ? tp.level : '—'}</td>
+                          <td>{tp.attempts}</td>
+                          <td>{pct === null ? '—' : `${pct}%`}</td>
+                          <td>{fmtDate(tp.lastAt)}</td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           ))}
-        </ul>
-      </div>
+          <details className="fold inner">
+            <summary>
+              <b>טעויות אחרונות</b>
+              <span className="fold-count">{s.mistakes.length || 'אין'}</span>
+            </summary>
+            {s.mistakes.length === 0 ? <p className="muted">אין עדיין טעויות במקצוע הזה 🙂</p> : mistakeList(s.mistakes)}
+          </details>
+        </details>
+      ))}
+      {otherMistakes.length > 0 && (
+        <details className="card fold">
+          <summary>
+            <h3>טעויות במקצועות אחרים</h3>
+            <span className="fold-count">{otherMistakes.length}</span>
+          </summary>
+          {mistakeList(otherMistakes)}
+        </details>
+      )}
+      <p className="footnote">"הצלחה" = נכון בניסיון ראשון, ונכון אחרי רמז נספר כחצי.</p>
     </>
   );
 }
