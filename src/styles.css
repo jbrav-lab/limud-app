@@ -452,3 +452,11 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
 .sticky-actions { position: sticky; bottom: 0; z-index: 2; flex-wrap: wrap; margin: 12px -4px 0; padding: 10px 4px; background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius-sm); }
 .sticky-actions .note { flex-basis: 100%; margin: 0; }
 .review .mmeta .mark { font-weight: 700; }
+/* Parent tests: "I don't understand the question" / "I didn't learn this" (roadmap items 4–5). */
+.stuck-actions { flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.stuck-actions .btn { font-size: 0.9rem; padding: 8px 12px; }
+.tip-box { background: var(--tip); border-radius: var(--radius-sm); padding: 10px 14px; margin: 10px 0; }
+.tip-box p { margin: 6px 0 0; }
+.unknown-mark { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 12px 14px; border: 2px dashed var(--accent-soft); border-radius: var(--radius-sm); }
+.flag-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.review .mmeta .chip { margin-inline-start: 6px; }

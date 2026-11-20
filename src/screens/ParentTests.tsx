@@ -3,7 +3,7 @@ import { describeCorrect, describeUser } from '../components/AnswerInput';
 import { Expression, MathText } from '../components/MathText';
 import { Visual } from '../components/Visual';
 import { MAX_QUESTIONS, MIN_QUESTIONS, buildExam, verbalGrade, type Difficulty, type ExamQuestion } from '../engine/exam';
-import { scoreFrozen, standIn } from '../engine/frozen';
+import { givenAnswer, scoreFrozen, standIn } from '../engine/frozen';
 import type { Level } from '../engine/types';
 import { dirClass, packInfo, topicById } from '../curricula';
 import type { Pack } from '../curricula/types';
@@ -343,6 +343,8 @@ function ReviewTest({ row, name, onDone }: { row: ParentTestRow; name: string; o
   const { score, correct, marks } = scoreFrozen(review.questions, review.keys, review.answers);
   const released = Boolean(row.releasedAt);
   const shown = released ? (row.score ?? score) : score;
+  const unknownCount = marks.filter((m) => m.unknown).length;
+  const helpCount = marks.filter((m) => m.help).length;
   return (
     <div className="card">
       <div className="row spread">
@@ -356,21 +358,29 @@ function ReviewTest({ row, name, onDone }: { row: ParentTestRow; name: string; o
       <p>
         <b className="big-score">{shown}</b> מתוך 100 · {verbalGrade(shown).label} · {correct} מתוך {review.questions.length} נכונות
       </p>
+      {(unknownCount > 0 || helpCount > 0) && (
+        <p className="flag-summary">
+          {unknownCount > 0 && <span className="chip">🤷 לא למד/ה: {unknownCount}</span>}
+          {helpCount > 0 && <span className="chip">💡 ביקש/ה הסבר: {helpCount}</span>}
+        </p>
+      )}
       <ol className="review">
         {review.questions.map((q, i) => {
           const m = marks[i];
           const key = review.keys[i];
-          const a = review.answers[i];
+          const a = givenAnswer(review.answers[i]);
           return (
             <li key={i} className={`${m.correct ? 'right' : 'wrong'} ${dirClass(q.topicId)}`}>
               <div className="mmeta">
                 <span className="mark">{m.correct ? '✓' : '✗'}</span> {topicById(q.topicId)?.title} · רמה {q.level} · {m.correct ? q.points : 0}/{q.points} נק׳
+                {m.unknown && <span className="chip">🤷 לא למדתי את זה</span>}
+                {m.help && <span className="chip">💡 ביקש/ה הסבר</span>}
               </div>
               <MathText text={q.prompt} />
               {q.visual && <Visual v={q.visual} />}
               {q.expression && <Expression text={q.expression} />}
               <div className="mans">
-                ענה/תה: {m.answered && a ? <span className={m.correct ? 'good' : 'bad'}><MathText text={describeUser(a, standIn(q.input))} /></span> : <span className="muted">לא נענתה</span>}
+                ענה/תה: {m.answered && a ? <span className={m.correct ? 'good' : 'bad'}><MathText text={describeUser(a, standIn(q.input))} /></span> : <span className="muted">{m.unknown ? 'סימן/ה "לא למדתי את זה"' : 'לא נענתה'}</span>}
                 {m.note && <span className="note"> ({m.note})</span>}
                 {!m.correct && key && (
                   <>

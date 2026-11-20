@@ -2,8 +2,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnswerInput, describeCorrect, describeUser, emptyUserAnswer } from '../components/AnswerInput';
 import { Expression, MathText } from '../components/MathText';
 import { Visual } from '../components/Visual';
-import { isComplete } from '../engine/check';
-import { scoreFrozen, standIn, type SubmittedAnswer } from '../engine/frozen';
+import type { UserAnswer } from '../engine/check';
+import { askedHelp, givenAnswer, isUnknown, scoreFrozen, slotDone, standIn, type FrozenQuestion, type SubmittedAnswer } from '../engine/frozen';
 import { verbalGrade } from '../engine/exam';
 import { play } from '../engine/sound';
 import { dirClass, packIdOf, topicById } from '../curricula';
@@ -102,16 +102,28 @@ function Run({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
     const s = savedAnswers(t.assignmentId)?.answers ?? [];
     return qs.map((_, i) => s[i] ?? null);
   });
-  const [index, setIndex] = useState(() => Math.max(0, answers.findIndex((a) => !a)));
+  const [index, setIndex] = useState(() => Math.max(0, answers.findIndex((a) => !slotDone(a))));
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const answeredAt = (i: number) => Boolean(answers[i] && isComplete(answers[i]!));
+  const answeredAt = (i: number) => slotDone(answers[i]);
   const unanswered = qs.filter((_, i) => !answeredAt(i)).length;
-  const setAnswer = (i: number, u: SubmittedAnswer) => {
-    const next = answers.map((x, j) => (j === i ? u : x));
+  const setSlot = (i: number, s: SubmittedAnswer) => {
+    const next = answers.map((x, j) => (j === i ? s : x));
     setAnswers(next);
     saveAnswers(t.assignmentId, next); // saved at once, so nothing is lost
+  };
+  // A real answer replaces "I didn't learn this"; asking for help stays recorded either way.
+  const helpFlag = (i: number) => (askedHelp(answers[i]) ? { help: true as const } : {});
+  const setAnswer = (i: number, u: UserAnswer) => setSlot(i, { ...u, ...helpFlag(i) });
+  const markUnknown = (i: number) => {
+    setSlot(i, { kind: 'unknown', ...helpFlag(i) });
+    if (i < qs.length - 1) setIndex(i + 1);
+  };
+  const undoUnknown = (i: number) => setSlot(i, askedHelp(answers[i]) ? { kind: 'blank', help: true } : null);
+  const askHelp = (i: number) => {
+    const s = answers[i];
+    setSlot(i, s ? { ...s, help: true } : { kind: 'blank', help: true });
   };
   const submit = () => {
     setSending(true);
@@ -161,17 +173,39 @@ function Run({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
         </p>
         {q.visual && <Visual v={q.visual} />}
         {q.expression && <Expression text={q.expression} />}
-        <AnswerInput
-          answer={a}
-          value={answers[index] ?? emptyUserAnswer(a)}
-          onChange={(u) => setAnswer(index, u)}
-          onSubmit={(u) => {
-            if (u) setAnswer(index, u);
-            else if (!last) setIndex(index + 1);
-          }}
-          disabled={sending}
-          showSelection={Boolean(answers[index])}
-        />
+        {askedHelp(answers[index]) && <QuestionTip q={q} />}
+        {isUnknown(answers[index]) ? (
+          <div className="unknown-mark">
+            <span>🤷 סימנת: לא למדתי את זה. השאלה תחכה לך לתרגול.</span>
+            <button className="btn ghost" disabled={sending} onClick={() => undoUnknown(index)}>
+              בכל זאת לענות
+            </button>
+          </div>
+        ) : (
+          <>
+            <AnswerInput
+              answer={a}
+              value={givenAnswer(answers[index]) ?? emptyUserAnswer(a)}
+              onChange={(u) => setAnswer(index, u)}
+              onSubmit={(u) => {
+                if (u) setAnswer(index, u);
+                else if (!last) setIndex(index + 1);
+              }}
+              disabled={sending}
+              showSelection={Boolean(givenAnswer(answers[index]))}
+            />
+            <div className="row stuck-actions">
+              {!askedHelp(answers[index]) && (
+                <button className="btn ghost" disabled={sending} onClick={() => askHelp(index)}>
+                  💡 לא הבנתי את השאלה
+                </button>
+              )}
+              <button className="btn ghost" disabled={sending} onClick={() => markUnknown(index)}>
+                🤷 לא למדתי את זה
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="row exam-actions">
@@ -215,6 +249,29 @@ function Run({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
   );
 }
 
+/**
+ * "I don't understand the question" (roadmap item 5): a tip without the answer: the question's own hint
+ * (the one practice shows before answering) plus reading guidance. Never the topic's lesson: bank
+ * questions are written from their lessons, so lesson text can give the answer away. The parent sees
+ * that a tip was asked for.
+ */
+function QuestionTip({ q }: { q: FrozenQuestion }) {
+  return (
+    <div className="tip-box" role="note">
+      <b>💡 עזרה בהבנת השאלה</b>
+      {q.hint && (
+        <p>
+          <MathText text={q.hint} />
+        </p>
+      )}
+      <p className={q.hint ? 'muted small-text' : undefined}>
+        קראו שוב לאט, מילה אחרי מילה. מה בדיוק שואלים? סמנו בראש את המילים והמספרים החשובים, ונסו להגיד את השאלה במילים שלכם.
+      </p>
+      <p className="muted small-text">אם עדיין לא ברור, אפשר לסמן "לא למדתי את זה". ההורים יראו שביקשת עזרה ויעזרו אחר כך.</p>
+    </div>
+  );
+}
+
 function Results({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
   const answers = savedAnswers(t.assignmentId)?.answers ?? [];
   const { marks, correct } = scoreFrozen(t.questions, t.keys!, answers);
@@ -253,7 +310,7 @@ function Results({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
             return (
               <li key={i} className={`${m.correct ? 'right' : 'wrong'} ${dirClass(q.topicId)}`}>
                 <button className="review-head" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
-                  <span className="mark">{m.correct ? '✓' : '✗'}</span>
+                  <span className="mark">{m.correct ? '✓' : m.unknown ? '🤷' : '✗'}</span>
                   <span className="rq">
                     <MathText text={q.prompt} />
                   </span>
@@ -266,7 +323,7 @@ function Results({ t, onExit }: { t: DeviceTest; onExit: () => void }) {
                     {q.visual && <Visual v={q.visual} />}
                     {q.expression && <Expression text={q.expression} />}
                     <p>
-                      התשובה שלך: {m.answered ? <MathText text={describeUser(answers[i]!, standIn(q.input))} /> : <span className="muted">לא נענתה</span>}
+                      התשובה שלך: {m.answered ? <MathText text={describeUser(givenAnswer(answers[i])!, standIn(q.input))} /> : <span className="muted">{m.unknown ? '🤷 לא למדתי את זה (נוסף לתרגול הטעויות)' : 'לא נענתה'}</span>}
                       {m.note && <span className="note"> ({m.note})</span>}
                     </p>
                     {!m.correct && key && (

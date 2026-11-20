@@ -1,5 +1,5 @@
 import type { ExamQuestion } from '../engine/exam';
-import { freeze, scoreFrozen, standIn, type FrozenKey, type FrozenQuestion, type SubmittedAnswer } from '../engine/frozen';
+import { freeze, givenAnswer, scoreFrozen, standIn, type FrozenKey, type FrozenQuestion, type SubmittedAnswer } from '../engine/frozen';
 import { actions, getData } from '../engine/store';
 import { describeCorrect, describeUser } from '../components/AnswerInput';
 import { DEVICE_AUTH_KEY, deviceClient, parentClient, syncEnabled } from './client';
@@ -266,7 +266,7 @@ function recordReleased(tests: DeviceTest[]) {
           : {
               prompt: q.prompt,
               expression: q.expression,
-              given: marks[i].answered ? describeUser(answers[i]!, standIn(q.input)) : '—',
+              given: marks[i].answered ? describeUser(givenAnswer(answers[i])!, standIn(q.input)) : marks[i].unknown ? 'לא למדתי את זה' : '—',
               correct: describeCorrect(t.keys![i].answer),
             },
       })),

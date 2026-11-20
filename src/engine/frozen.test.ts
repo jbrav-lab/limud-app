@@ -4,7 +4,7 @@ import { emptyUserAnswer } from '../components/AnswerInput';
 import type { UserAnswer } from './check';
 import { gcd } from './math';
 import { allocatePoints, type ExamQuestion } from './exam';
-import { freeze, scoreFrozen, standIn } from './frozen';
+import { freeze, givenAnswer, scoreFrozen, slotDone, standIn, type SubmittedAnswer } from './frozen';
 import type { Answer, Level } from './types';
 
 const LOADED = await Promise.all(PACKS.map((p) => loadPack(p.id)));
@@ -53,9 +53,24 @@ describe('parent-made tests: frozen questions and scoring', () => {
 
   it('the child’s copy holds no answers, keys or explanations', () => {
     for (const q of questions) {
-      const json = JSON.stringify(q);
-      for (const field of ['"answer"', '"solution"', '"accept"', '"correct"', '"hint"', '"pairs"', '"start"', '"num"', '"den"', '"value"']) expect(json).not.toContain(field);
+      // The hint is allowed (the "I don't understand the question" tip): practice shows it before answering too.
+      const json = JSON.stringify({ ...q, hint: undefined });
+      for (const field of ['"answer"', '"solution"', '"accept"', '"correct"', '"pairs"', '"start"', '"num"', '"den"', '"value"']) expect(json).not.toContain(field);
     }
+  });
+
+  it('"I didn\'t learn this" scores 0 and is marked; asking for a tip keeps the answer and is marked', () => {
+    const right = exam.map((e) => rightAnswer(e.q.answer));
+    const slots: SubmittedAnswer[] = right.map((u, i) => (i === 0 ? { kind: 'unknown' } : i === 1 ? { ...u, help: true } : i === 2 ? { kind: 'blank', help: true } : u));
+    const r = scoreFrozen(questions, keys, slots);
+    expect(r.marks[0]).toMatchObject({ answered: false, correct: false, unknown: true });
+    expect(r.marks[1]).toMatchObject({ answered: true, correct: true, help: true });
+    expect(r.marks[2]).toMatchObject({ answered: false, correct: false, help: true });
+    expect(r.correct).toBe(questions.length - 2);
+    expect(slotDone(slots[0])).toBe(true);
+    expect(slotDone(slots[2])).toBe(false);
+    expect(givenAnswer(slots[1])).toEqual(right[1]);
+    expect(givenAnswer(slots[0])).toBeNull();
   });
 
   it('a stand-in draws the usual answer widget', () => {

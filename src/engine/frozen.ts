@@ -31,6 +31,8 @@ export interface FrozenQuestion {
   expression?: RichText;
   visual?: Visual;
   wordProblem?: boolean;
+  /** A tip that helps read the question without giving the answer (the same hint practice shows). */
+  hint?: RichText;
   input: AnswerInputSpec;
 }
 
@@ -77,6 +79,7 @@ export function freeze(exam: ExamQuestion[]): { questions: FrozenQuestion[]; key
         expression: e.q.expression,
         visual: e.q.visual,
         wordProblem: e.q.wordProblem,
+        hint: e.q.hint,
         input: inputSpec(e.q.answer),
       }),
     ),
@@ -121,19 +124,43 @@ export interface Mark {
   answered: boolean;
   correct: boolean;
   note?: string;
+  /** the child marked it "I didn't learn this" (roadmap item 4) */
+  unknown?: boolean;
+  /** the child asked for a tip: "I don't understand the question" (roadmap item 5) */
+  help?: boolean;
 }
 
-/** An answer as uploaded: null for a question left blank. */
-export type SubmittedAnswer = UserAnswer | null;
+/**
+ * One question's slot as saved and uploaded: an answer, "I didn't learn this" (`unknown`), or nothing
+ * (null; `blank` only when the slot carries the help flag). Any of them may carry `help: true`.
+ * Old tests hold only answers and nulls, which read the same as before.
+ */
+export type SubmittedAnswer = ((UserAnswer | { kind: 'unknown' } | { kind: 'blank' }) & { help?: true }) | null;
+
+/** The real answer in a slot, if the child gave one. */
+export function givenAnswer(s: SubmittedAnswer | undefined): UserAnswer | null {
+  if (!s || s.kind === 'unknown' || s.kind === 'blank') return null;
+  const { help: _help, ...u } = s as UserAnswer & { help?: true };
+  return u as UserAnswer;
+}
+export const isUnknown = (s: SubmittedAnswer | undefined) => s?.kind === 'unknown';
+export const askedHelp = (s: SubmittedAnswer | undefined) => Boolean(s?.help);
+/** The slot is settled: answered in full, or marked "I didn't learn this". */
+export const slotDone = (s: SubmittedAnswer | undefined) => {
+  const u = givenAnswer(s);
+  return isUnknown(s) || Boolean(u && isComplete(u));
+};
 
 /** Score a submitted test with the app's own checker: points per question, out of 100. */
 export function scoreFrozen(questions: FrozenQuestion[], keys: FrozenKey[], answers: SubmittedAnswer[]): { score: number; correct: number; marks: Mark[] } {
   const marks = questions.map((_, i): Mark => {
-    const u = answers[i];
+    const s = answers[i];
+    const flags = { ...(isUnknown(s) ? { unknown: true } : {}), ...(askedHelp(s) ? { help: true } : {}) };
+    const u = givenAnswer(s);
     const k = keys[i];
-    if (!u || !k || !isComplete(u)) return { answered: false, correct: false };
+    if (!u || !k || !isComplete(u)) return { answered: false, correct: false, ...flags };
     const r = checkAnswer(k.answer, toKeyAnswer(u, k.answer));
-    return { answered: true, correct: r.correct, ...(r.note ? { note: r.note } : {}) };
+    return { answered: true, correct: r.correct, ...(r.note ? { note: r.note } : {}), ...flags };
   });
   return {
     score: Math.min(100, questions.reduce((s, q, i) => s + (marks[i].correct ? q.points : 0), 0)),
