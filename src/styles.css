@@ -396,3 +396,12 @@ h3 { font-size: 1.05rem; margin: 0 0 10px; }
    from its own text, so English reads LTR and the Hebrew explanations stay RTL. Layout direction is unchanged. */
 .dir-auto :is(p, li, .example, figcaption, .choice, .order-text, .match-left, .rq, .text-input) { unicode-bidi: plaintext; }
 .dir-auto :is(p, li, .example, figcaption) { text-align: start; }
+
+/* Parent report: where the data comes from (Stage 4) */
+.remote-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}

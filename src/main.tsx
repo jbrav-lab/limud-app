@@ -14,6 +14,7 @@ import { receiveFromOldAddress } from './engine/move';
 import { parentClient, syncEnabled } from './sync/client';
 import { cameBackFromSignIn, markPinResetReturn, takeSignInError } from './sync/family';
 import { setStartupSignInError } from './screens/FamilySync';
+import { startAutoUpload } from './sync/progress';
 import { Gallery } from './screens/Gallery';
 
 const showGallery = import.meta.env.DEV && location.search.includes('gallery');
@@ -44,4 +45,6 @@ const purpose = cameBackFromSignIn();
 if (purpose === 'pin-reset') markPinResetReturn();
 if (purpose) history.replaceState({ s: 'parent' }, '');
 receiveFromOldAddress(() => rerender());
+// A paired child's device uploads its progress (Stage 4); nothing happens on an unpaired device.
+startAutoUpload();
 createRoot(document.getElementById('root')!).render(<StrictMode>{showGallery ? <Gallery /> : <Root />}</StrictMode>);

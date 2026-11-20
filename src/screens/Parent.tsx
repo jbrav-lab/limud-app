@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
-import { actions, childProgress, mastery, today, topicProgress, useData } from '../engine/store';
+import { actions, childProgress, deriveTotals, emptyChild, emptyTopic, mastery, today, useData, type ChildProgress } from '../engine/store';
+import { mergeChild } from '../engine/merge';
+import { useRemoteChildren, useRemoteProgress } from '../sync/useRemote';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
 import { iosNotInstalled } from '../engine/device';
 import { FamilySync } from './FamilySync';
@@ -125,13 +127,55 @@ function PinGate({ onOk, onBack }: { onOk: () => void; onBack: () => void }) {
 
 const fmtDate = (t: number) => (t ? new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '—');
 
-function ChildReport({ pid, allPacks }: { pid: string; allPacks: Pack[] }) {
+const ago = (t: number) => {
+  const m = Math.round((Date.now() - t) / 60_000);
+  if (m < 1) return 'עכשיו';
+  if (m < 60) return `לפני ${m} דקות`;
+  if (m < 24 * 60) return `לפני ${Math.round(m / 60)} שעות`;
+  return new Date(t).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+/**
+ * A child's report: this phone's own data, plus (Stage 4) what the child's paired devices uploaded,
+ * when a parent is signed in. Both are merged the same way two devices merge, so nothing counts twice.
+ */
+function ChildTab({ pid, grade, name, allPacks }: { pid: string; grade?: number; name: string; allPacks: Pack[] }) {
   const data = useData();
-  const c = childProgress(data, pid);
-  const grade = data.profiles.find((p) => p.id === pid)?.grade;
+  const remote = useRemoteProgress(pid);
+  const local = data.progress[pid];
+  let c = childProgress(data, pid);
+  if (remote.data && remote.data.updatedAt) {
+    const merged = mergeChild(local ?? emptyChild(), { ...remote.data.child, ...(local?.resetAt ? { resetAt: local.resetAt } : {}) });
+    c = { ...merged, ...deriveTotals(merged) };
+  }
+  return (
+    <>
+      {remote.state !== 'off' && (
+        <div className="card remote-line">
+          {remote.state === 'loading' && <span className="muted">🌐 טוען נתונים מהשרת…</span>}
+          {remote.state === 'error' && <span className="muted">🌐 לא הצלחנו לטעון מהשרת. בדקו את החיבור.</span>}
+          {remote.state === 'ok' &&
+            (remote.data?.updatedAt ? (
+              <span>
+                🌐 כולל נתונים מהטלפון של {name} · עודכן {ago(remote.data.updatedAt)}
+              </span>
+            ) : (
+              <span className="muted">🌐 עוד אין נתונים בשרת מטלפון מחובר.</span>
+            ))}{' '}
+          <button className="btn ghost" onClick={remote.reload} disabled={remote.state === 'loading'}>
+            רענון
+          </button>
+        </div>
+      )}
+      <ChildReport c={c} grade={grade} allPacks={allPacks} />
+    </>
+  );
+}
+
+function ChildReport({ c, grade, allPacks }: { c: ChildProgress; grade?: number; allPacks: Pack[] }) {
   // The child's grade subjects, plus any other subject they have progress in (e.g. after a grade change).
   const packs = allPacks.filter((p) => p.grade === grade || p.topics.some((t) => c.topics[t.id]));
-  const tps = packs.flatMap((p) => p.topics).map((t) => ({ t, tp: topicProgress(data, pid, t.id) }));
+  const tps = packs.flatMap((p) => p.topics).map((t) => ({ t, tp: c.topics[t.id] ?? emptyTopic() }));
   const attempts = tps.reduce((s, x) => s + x.tp.attempts, 0);
   const first = tps.reduce((s, x) => s + x.tp.firstTry, 0);
   const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -305,7 +349,13 @@ export function Parent({ onBack }: { onBack: () => void }) {
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Family children that aren't on this phone (for example on a second parent's phone), from the server.
+  const remoteKids = useRemoteChildren(ok);
+
   if (!ok) return <PinGate onOk={() => setOk(true)} onBack={onBack} />;
+
+  const remoteOnly = remoteKids.filter((k) => !data.profiles.some((p) => p.id === k.id) && !data.deleted[k.id]);
+  const selKid = data.profiles.find((p) => p.id === sel) ?? remoteOnly.find((k) => k.id === sel);
 
   const exportData = () => {
     const blob = new Blob([backupJson(data)], { type: 'application/json' });
@@ -330,13 +380,20 @@ export function Parent({ onBack }: { onBack: () => void }) {
             {p.avatar} {p.name}
           </button>
         ))}
+        {remoteOnly.map((k) => (
+          <button key={k.id} className={sel === k.id ? 'on' : ''} onClick={() => setSel(k.id)}>
+            {k.avatar} {k.name} 🌐
+          </button>
+        ))}
         <button className={sel === 'settings' ? 'on' : ''} onClick={() => setSel('settings')}>
           ⚙️ הגדרות
         </button>
       </nav>
 
-      {sel !== 'settings' && data.profiles.some((p) => p.id === sel) && (
-        <WithPacks ids={PACKS.map((p) => p.id)}>{(packs) => <ChildReport pid={sel} allPacks={packs} />}</WithPacks>
+      {sel !== 'settings' && selKid && (
+        <WithPacks ids={PACKS.map((p) => p.id)}>
+          {(packs) => <ChildTab key={selKid.id} pid={selKid.id} grade={selKid.grade} name={selKid.name} allPacks={packs} />}
+        </WithPacks>
       )}
 
       {sel === 'settings' && (

@@ -183,6 +183,14 @@ export const invitePrimary = (email: string) => rpc('invite_primary', { p_email:
 
 export const familyChildren = (family: string) => rpc<ServerChild[]>('family_children', { p_family: family });
 
+/** Every child in the signed-in parent's families (not deleted), without joining or recording anything. */
+export async function allFamilyChildren(): Promise<ServerChild[]> {
+  const families = (await rpc<Family[] | null>('my_families')) ?? [];
+  const out: ServerChild[] = [];
+  for (const f of families) for (const ch of await familyChildren(f.family_id)) if (!ch.deleted_at) out.push(ch);
+  return out;
+}
+
 /** Add (or update) this device's children in the family. Each keeps its id, so devices can merge later. */
 export async function shareChildren(family: string, profiles: Profile[]) {
   for (const p of profiles) {

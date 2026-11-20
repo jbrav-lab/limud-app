@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getData, useData } from '../engine/store';
 import { syncEnabled } from '../sync/client';
+import { startAutoUpload, uploadProgress } from '../sync/progress';
 import {
   SyncError,
   adminStatus,
@@ -372,7 +373,19 @@ function ThisDevice() {
     <div className="card">
       <h3>📱 המכשיר הזה</h3>
       {kids && kids.length ? (
-        <p>המכשיר מחובר למשפחה ✓ ילדים במכשיר: {kids.map((k) => k.name).join(', ')}</p>
+        <>
+          <p>המכשיר מחובר למשפחה ✓ ילדים במכשיר: {kids.map((k) => k.name).join(', ')}</p>
+          <p className="muted">ההתקדמות נשלחת להורים אוטומטית כשיש אינטרנט.</p>
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setMsg('שולח…');
+              void uploadProgress().then((ok) => setMsg(ok ? 'ההתקדמות נשלחה ✓' : 'לא הצלחנו לשלוח. בדקו את החיבור לאינטרנט.'));
+            }}
+          >
+            שליחה עכשיו
+          </button>
+        </>
       ) : (
         <>
           <p className="muted">יש לכם קוד חיבור מהורה? הקלידו אותו כאן כדי לחבר את המכשיר למשפחה.</p>
@@ -385,7 +398,10 @@ function ThisDevice() {
                 pairThisDevice(code, data.deviceId)
                   .then((ok) => {
                     setMsg(ok ? 'המכשיר חובר ✓' : 'הקוד לא נכון או שפג תוקפו.');
-                    if (ok) setCode('');
+                    if (ok) {
+                      setCode('');
+                      startAutoUpload();
+                    }
                     return load();
                   })
                   .catch((e) => setMsg(say(e)))

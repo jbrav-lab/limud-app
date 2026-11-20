@@ -368,6 +368,12 @@ export function useData(): AppData {
 
 export const getData = () => data;
 
+/** Call `l` after every change to the data (the progress upload listens; returns an unsubscribe). */
+export function onDataChange(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
 export const today = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -377,7 +383,7 @@ export function dayBefore(day: string): string {
   return today(new Date(y, m - 1, d - 1));
 }
 
-const emptyChild = (): StoredChild => ({ byDevice: {}, topics: {}, mistakes: [] });
+export const emptyChild = (): StoredChild => ({ byDevice: {}, topics: {}, mistakes: [] });
 export const emptyRow = (): DeviceCounters => ({ stars: 0, sessions: 0, daily: {} });
 
 export const emptyTopic = (): TopicProgress => ({

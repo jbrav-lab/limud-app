@@ -72,6 +72,7 @@ Exact commands and clicks: **[go-live-runbook-stage1.md](go-live-runbook-stage1.
   - an uninvited Google account is refused by the hook.
 
 ## Stage 4: the sync itself
+- **Done first (owner, 2026-11-20: "I need the online monitoring on his device"):** one-way upload from a paired device of counters, daily activity, topic progress, test results and mistakes (`src/sync/progress.ts`), read by signed-in parents in the parent report (merged with the phone's own data, so nothing counts twice). This brings counters and topic progress forward from "deferred until after the beta". No database change: the tables, access rules and grow-only merge triggers were already live. Tests: `src/sync/progress.test.ts`, `src/server-tests/progress-sync.test.ts`. The device never downloads; two-way sync between devices is still to come.
 - Order: exam results and mistakes, then profiles, then counters and topic progress.
 - Tombstones for deletes.
 - Tests: two devices, offline edits, conflicts.
