@@ -83,6 +83,7 @@ Decided 2026-11-15. A dump of the database must not reveal which parent's email 
 4. **No other identifiers:** no IP addresses or browser/device details in the data tables. Device labels are encrypted like names.
 5. **Parent action times are rounded** (to the hour) so they can't be matched to `auth.users.last_sign_in_at`. Children's activity keeps exact times.
 6. **Admin screens** can list emails (for invites) and families (names encrypted), but have no way to connect them.
+6a. **The family's parents list** (owner, 2026-11-22): each parent's own app hands in that parent's address from its own sign-in token, and it is stored **encrypted** with the Vault name key (`family_members.email_enc`), like names. Only parents of that family can read it (`family_parents()`); the admin can't. Without the keys a dump shows ciphertext; with the keys the link was already computable from `auth.users` and the HMAC, so the protection level is unchanged. The last day each parent used the app is stored as a date only (`last_seen_on`).
 7. **Leak test** on the local stack, run before every deploy: dump the database without the Vault key, then check that no public column contains an `auth.users` id, that no invite traces remain after acceptance, and that no query can join an email to a child.
 
 **Not covered:** someone holding both the dump and the key (control of the server or the Supabase account); guessing from outside knowledge while there are very few families; Supabase request logs and email-service logs, which are outside the database.

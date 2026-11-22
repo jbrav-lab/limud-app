@@ -7,7 +7,7 @@ import { deviceClient, parentClient } from './client';
  */
 
 /** Version of the privacy notice the parent agreed to (recorded with record_consent). */
-export const NOTICE_VERSION = '2026-11-18';
+export const NOTICE_VERSION = '2026-11-22';
 
 export type Family = { family_id: string; name: string; role: 'primary' | 'parent'; member_id: string };
 export type ServerChild = { id: string; name: string; avatar: string; grade: number; theme: string | null; deleted_at: string | null };
@@ -156,6 +156,7 @@ export async function signOut(everywhere = false) {
 /** Join every family that invited this parent, then list the parent's families. */
 export async function loadFamilies(): Promise<{ families: Family[]; joined: string[] }> {
   const joined = (await rpc<string[] | null>('accept_invites')) ?? [];
+  await markSeen();
   const families = (await rpc<Family[] | null>('my_families')) ?? [];
   for (const f of joined) await rpc('record_consent', { p_family: f, p_notice_version: NOTICE_VERSION });
   return { families, joined };
@@ -185,6 +186,7 @@ export const familyChildren = (family: string) => rpc<ServerChild[]>('family_chi
 
 /** Every child in the signed-in parent's families (not deleted), without joining or recording anything. */
 export async function allFamilyChildren(): Promise<ServerChild[]> {
+  void markSeen();
   const families = (await rpc<Family[] | null>('my_families')) ?? [];
   const out: ServerChild[] = [];
   for (const f of families) for (const ch of await familyChildren(f.family_id)) if (!ch.deleted_at) out.push(ch);
@@ -205,6 +207,20 @@ export async function shareChildren(family: string, profiles: Profile[]) {
     });
   }
 }
+
+// --- Parents ------------------------------------------------------------------------------------
+
+export type FamilyParent = { member_id: string; role: 'primary' | 'parent'; email: string | null; joined_at: string; last_seen_on: string | null; is_me: boolean };
+
+/**
+ * Tell the server this parent is using the app today, with their own Google address (read by the server
+ * from the sign-in token, stored encrypted), so the family's parents list can show it. Never fails the
+ * caller: if it doesn't work (offline, or an older server), the list just shows less.
+ */
+const markSeen = () => rpc('parent_seen').then(() => undefined, () => undefined);
+
+/** The family's parents: address, role and the last day each used the app signed in. */
+export const familyParents = (family: string) => rpc<FamilyParent[]>('family_parents', { p_family: family });
 
 // --- Devices ------------------------------------------------------------------------------------
 

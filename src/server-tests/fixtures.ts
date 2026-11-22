@@ -49,6 +49,9 @@ async function buildFamily(db: TestDb, admin: Caller, key: 'A' | 'B'): Promise<F
   await db.as(primary, `select public.record_consent($1, '2026-11')`, [id]);
   await db.as(primary, `select public.invite_parent($1, $2)`, [id, parent.email!.toUpperCase()]);
   await db.as(parent, `select * from public.accept_invites()`);
+  // Each parent's app records its own address (encrypted) and the day it was last used.
+  await db.as(primary, `select public.parent_seen()`);
+  await db.as(parent, `select public.parent_seen()`);
 
   const members = await db.as<{ member_id: string; role: string }>(primary,
     `select member_id, role from public.family_members where family_id = $1`, [id]);

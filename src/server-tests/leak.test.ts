@@ -46,6 +46,8 @@ describe('leak test: a dump without the Vault keys', () => {
       expect(dump).toMatch(new RegExp(`^${t}: \\{`, 'm'));
     }
     expect(users.length).toBeGreaterThanOrEqual(8);
+    // Parents' encrypted addresses are in the dump, so the email checks below cover them.
+    expect(dump).toMatch(/"email_enc":"\\\\x[0-9a-f]+"/);
   });
 
   it('contains no auth.users id, in any form', () => {
@@ -117,7 +119,8 @@ describe('leak test: no query can join an email to a child', () => {
     expect(fks).toEqual([]);
     const cols = await db.owner(`select table_name, column_name, data_type from information_schema.columns
       where table_schema = 'public' and (column_name ~ '(email|user_id|ip_|^ip$|address|phone)' or data_type in ('inet', 'cidr'))
-        and column_name not in ('email_hmac')`);
+        and column_name not in ('email_hmac', 'email_enc')`);
+    // email_enc holds parents' addresses encrypted with the Vault name key; the dump checks above show it unreadable.
     expect(cols).toEqual([]);
   });
 

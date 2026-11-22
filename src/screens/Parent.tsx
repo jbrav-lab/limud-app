@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Expression, MathText } from '../components/MathText';
 import { actions, childProgress, deriveTotals, emptyChild, emptyTopic, mastery, today, useData, type ChildProgress, type TopicProgress } from '../engine/store';
 import { mergeChild } from '../engine/merge';
-import { useRemoteChildren, useRemoteProgress } from '../sync/useRemote';
+import { parentSignedIn, useRemoteChildren, useRemoteProgress } from '../sync/useRemote';
 import { MAX_BACKUP_BYTES, backupJson, readBackup } from '../engine/backup';
 import { iosNotInstalled } from '../engine/device';
 import { FamilySync } from './FamilySync';
@@ -446,6 +446,17 @@ export function Parent({ onBack }: { onBack: () => void }) {
 
   // Family children that aren't on this phone (for example on a second parent's phone), from the server.
   const remoteKids = useRemoteChildren(ok);
+  // The sign-in notice's button: open Settings, then (once rendered) scroll to the family card.
+  const [toFamily, setToFamily] = useState(false);
+  useEffect(() => {
+    if (!toFamily || sel !== 'settings') return;
+    // A moment later: the settings cards are still laying out right after the switch.
+    const t = setTimeout(() => {
+      setToFamily(false);
+      document.getElementById('family-sync')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [toFamily, sel]);
 
   if (!ok) return <PinGate onOk={() => setOk(true)} onBack={onBack} />;
 
@@ -484,6 +495,24 @@ export function Parent({ onBack }: { onBack: () => void }) {
           ⚙️ הגדרות
         </button>
       </nav>
+
+      {sel !== 'settings' && syncEnabled() && !parentSignedIn() && (
+        <div className="card remote-line signin-hint">
+          <span>
+            🌐 בטלפון הזה לא התחברתם עם Google, ולכן לא רואים כאן את הנתונים מהטלפון של הילד/ה ואת תוצאות המבחנים. אחרי
+            ההתחברות יופיעו כאן כל ילדי המשפחה.
+          </span>
+          <button
+            className="btn primary"
+            onClick={() => {
+              setSel('settings');
+              setToFamily(true);
+            }}
+          >
+            להתחברות
+          </button>
+        </div>
+      )}
 
       {sel !== 'settings' && selKid && (
         <WithPacks ids={PACKS.map((p) => p.id)}>

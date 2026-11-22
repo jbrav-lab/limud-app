@@ -11,6 +11,7 @@ import {
   createPairing,
   familyChildren,
   familyDevices,
+  familyParents,
   invitePrimary,
   inviteParent,
   loadFamilies,
@@ -23,6 +24,7 @@ import {
   signOut,
   type Device,
   type Family,
+  type FamilyParent,
   type ServerChild,
 } from '../sync/family';
 
@@ -36,10 +38,10 @@ const say = (e: unknown) => (e instanceof SyncError ? e.message : 'משהו הש
 export function FamilySync() {
   if (!syncEnabled()) return null;
   return (
-    <>
+    <div id="family-sync">
       <ParentAccount />
       <ThisDevice />
-    </>
+    </div>
   );
 }
 
@@ -47,8 +49,9 @@ function PrivacyNotice() {
   return (
     <div className="muted">
       <p>
-        <strong>מה נשמר בשרת המשפחתי:</strong> כינויי הילדים (מוצפנים), האווטאר, הכיתה, וההתקדמות בתרגול ובמבחנים. כתובת האימייל משמשת רק
-        להתחברות, ואי אפשר לקשר אותה לילדים מתוך מסד הנתונים.
+        <strong>מה נשמר בשרת המשפחתי:</strong> כינויי הילדים (מוצפנים), האווטאר, הכיתה, וההתקדמות בתרגול ובמבחנים. כתובת האימייל משמשת
+        להתחברות, ונשמרת גם מוצפנת כדי שההורים במשפחה יראו אילו חשבונות שייכים למשפחה ומתי השתמשו בהם לאחרונה. מעותק של מסד הנתונים
+        בלי המפתחות אי אפשר לקשר אותה לילדים.
       </p>
       <p>
         <strong>איפה:</strong> אצל Supabase, בשרת באוסטרליה (סידני). <strong>מי רואה:</strong> רק ההורים במשפחה והמכשירים שחיברתם.
@@ -181,6 +184,12 @@ function FamilyDetails({ family }: { family: Family }) {
   useEffect(() => {
     void reload();
   }, [family.family_id]);
+  const [parents, setParents] = useState<FamilyParent[] | null>(null);
+  useEffect(() => {
+    familyParents(family.family_id)
+      .then(setParents)
+      .catch(() => setParents(null));
+  }, [family.family_id]);
 
   const onServer = new Set(children.map((c) => c.id));
   const notShared = data.profiles.filter((p) => !onServer.has(p.id));
@@ -194,6 +203,7 @@ function FamilyDetails({ family }: { family: Family }) {
 
   return (
     <>
+      {parents && <ParentsList parents={parents} />}
       <h4>ילדים</h4>
       {children.length ? <p>{children.map((c) => `${c.avatar} ${c.name}`).join(' · ')}</p> : <p className="muted">עוד אין ילדים במשפחה.</p>}
       {notShared.length > 0 && (
@@ -261,6 +271,43 @@ function FamilyDetails({ family }: { family: Family }) {
 }
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+
+/** When a parent last used the app signed in (a day, from the server's `last_seen_on`). */
+function lastSeen(p: FamilyParent): string {
+  if (p.is_me) return '✅ מחובר/ת עכשיו, בטלפון הזה';
+  if (!p.last_seen_on) return '⏳ עוד לא נכנס/ה מחובר/ת מאז שהרשימה נוספה';
+  const days = Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(p.last_seen_on)) / 86_400_000);
+  if (days <= 0) return '✅ השתמש/ה באפליקציה מחובר/ת היום';
+  if (days === 1) return '✅ השתמש/ה באפליקציה מחובר/ת אתמול';
+  return `${days > 7 ? '⚠️' : '✅'} השתמש/ה באפליקציה מחובר/ת לאחרונה ב־${day(p.last_seen_on)}`;
+}
+
+/** The family's parents, folded: each Google address, role, and when they last used the app signed in. */
+function ParentsList({ parents }: { parents: FamilyParent[] }) {
+  return (
+    <details className="fold parents-fold">
+      <summary>
+        <h4>הורים במשפחה</h4>
+        <span className="fold-count">{parents.length}</span>
+      </summary>
+      <ul className="parents-list">
+        {parents.map((p) => (
+          <li key={p.member_id}>
+            <span dir="ltr" className="parent-email">
+              {p.email ?? 'כתובת עוד לא ידועה'}
+            </span>{' '}
+            <span className="muted small-text">· {p.role === 'primary' ? 'מנהל/ת המשפחה' : 'הורה'}</span>
+            <br />
+            <span className="small-text">{lastSeen(p)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted small-text">
+        „מחובר/ת” = היום האחרון שבו ההורה פתח/ה את האפליקציה עם חשבון Google. הכתובת נשמרת מוצפנת, ומופיעה אחרי הכניסה הראשונה מאז העדכון.
+      </p>
+    </details>
+  );
+}
 
 /** Pending invites, so the parent sees that inviting worked. The server keeps no addresses. */
 function PendingList({ list }: { list: string[] }) {
